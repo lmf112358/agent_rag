@@ -1,0 +1,89 @@
+# 通用忽略文件
+*.log
+*.log.*
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 虚拟环境
+venv/
+env/
+env.local/
+env.*.local/
+
+# 依赖目录
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE配置
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 数据库文件
+*.db
+*.sqlite3
+
+# 构建文件
+build/
+dist/
+*.egg-info/
+
+# 临时文件
+tmp/
+temp/
+
+# 日志文件
+logs/
+*.log
+
+# 操作系统文件
+Thumbs.db
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# 备份文件
+*.bak
+*.backup
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+
+# 大文件
+*.pdf
+*.docx
+*.xlsx
+*.pptx
+
+# 敏感文件
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# 执行文件
+*.exe
+*.dll
+*.so
+*.dylib

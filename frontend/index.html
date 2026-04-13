@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic RAG 智能助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#6366f1',
+                        accent: '#10b981',
+                        neutral: '#6b7280',
+                        'neutral-dark': '#374151',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                    },
+                },
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="mb-8">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
+                        <i data-lucide="brain"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Agentic RAG 智能助手</h1>
+                        <p class="text-sm text-gray-500">基于LangChain的工业知识系统</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button id="newSessionBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                        <i data-lucide="plus"></i>
+                        <span class="ml-2">新会话</span>
+                    </button>
+                    <div class="relative">
+                        <button id="sessionDropdownBtn" class="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i data-lucide="list"></i>
+                            <span id="currentSessionId" class="text-sm">会话 #1</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </button>
+                        <div id="sessionDropdown" class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 hidden">
+                            <div class="p-2">
+                                <div class="text-sm font-medium text-gray-700 mb-2">最近会话</div>
+                                <div id="sessionList" class="space-y-1">
+                                    <!-- 会话列表将通过JS动态添加 -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 聊天区域 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                        <h2 class="font-semibold text-gray-900">智能对话</h2>
+                        <div class="flex items-center space-x-2">
+                            <button id="clearChatBtn" class="text-gray-500 hover:text-gray-700">
+                                <i data-lucide="trash-2"></i>
+                            </button>
+                            <button id="saveSessionBtn" class="text-gray-500 hover:text-gray-700">
+                                <i data-lucide="save"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="chatContainer" class="h-[500px] overflow-y-auto p-4 space-y-4 scrollbar-hide">
+                        <!-- 消息将通过JS动态添加 -->
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i data-lucide="robot" class="w-5 h-5 text-gray-600"></i>
+                            </div>
+                            <div class="flex-1">
+                                <div class="bg-gray-100 rounded-lg p-3">
+                                    <p class="text-gray-700">你好！我是工业知识智能助手。请问有什么可以帮助你的？</p>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    智能助手 • 刚刚
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-4 border-t border-gray-200">
+                        <form id="chatForm" class="flex space-x-2">
+                            <input 
+                                type="text" 
+                                id="chatInput" 
+                                placeholder="输入你的问题..." 
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                            <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
+                                <i data-lucide="send"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧面板 -->
+            <div class="lg:col-span-1">
+                <div class="space-y-6">
+                    <!-- 工具列表 -->
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                            <i data-lucide="wrench" class="w-5 h-5 mr-2"></i>
+                            可用工具
+                        </h3>
+                        <div id="toolList" class="space-y-2">
+                            <!-- 工具列表将通过JS动态添加 -->
+                        </div>
+                    </div>
+
+                    <!-- 会话记忆 -->
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                            <i data-lucide="clock" class="w-5 h-5 mr-2"></i>
+                            会话记忆
+                        </h3>
+                        <div id="memoryContainer" class="space-y-2 max-h-60 overflow-y-auto scrollbar-hide">
+                            <div class="text-sm text-gray-500">
+                                会话开始
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 系统状态 -->
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                            <i data-lucide="activity" class="w-5 h-5 mr-2"></i>
+                            系统状态
+                        </h3>
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">API状态:</span>
+                                <span id="apiStatus" class="text-green-600">✓ 正常</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">会话ID:</span>
+                                <span id="statusSessionId" class="font-mono">#1</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600">消息数:</span>
+                                <span id="messageCount">1</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 初始化Lucide图标
+        lucide.createIcons();
+
+        // 全局变量
+        let currentSessionId = 'session_' + Date.now();
+        let messageCount = 1;
+        let chatHistory = [];
+
+        // DOM元素
+        const chatForm = document.getElementById('chatForm');
+        const chatInput = document.getElementById('chatInput');
+        const chatContainer = document.getElementById('chatContainer');
+        const currentSessionIdEl = document.getElementById('currentSessionId');
+        const statusSessionIdEl = document.getElementById('statusSessionId');
+        const messageCountEl = document.getElementById('messageCount');
+        const toolListEl = document.getElementById('toolList');
+        const memoryContainerEl = document.getElementById('memoryContainer');
+        const sessionListEl = document.getElementById('sessionList');
+        const sessionDropdown = document.getElementById('sessionDropdown');
+        const sessionDropdownBtn = document.getElementById('sessionDropdownBtn');
+        const newSessionBtn = document.getElementById('newSessionBtn');
+        const clearChatBtn = document.getElementById('clearChatBtn');
+        const saveSessionBtn = document.getElementById('saveSessionBtn');
+
+        // API基础URL
+        const API_BASE = 'http://localhost:8000/api';
+
+        // 初始化
+        async function init() {
+            updateSessionIdDisplay();
+            await loadTools();
+            await loadSessions();
+        }
+
+        // 更新会话ID显示
+        function updateSessionIdDisplay() {
+            currentSessionIdEl.textContent = `会话 #${currentSessionId.split('_')[1]}`;
+            statusSessionIdEl.textContent = `#${currentSessionId.split('_')[1]}`;
+        }
+
+        // 加载工具列表
+        async function loadTools() {
+            try {
+                const response = await fetch(`${API_BASE}/agent/tools`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    toolListEl.innerHTML = '';
+                    data.data.forEach(tool => {
+                        const toolItem = document.createElement('div');
+                        toolItem.className = 'p-2 border border-gray-200 rounded-lg hover:bg-gray-50';
+                        toolItem.innerHTML = `
+                            <div class="font-medium text-sm">${tool.name}</div>
+                            <div class="text-xs text-gray-600 mt-1 line-clamp-2">${tool.description}</div>
+                        `;
+                        toolListEl.appendChild(toolItem);
+                    });
+                }
+            } catch (error) {
+                console.error('加载工具失败:', error);
+            }
+        }
+
+        // 加载会话列表
+        async function loadSessions() {
+            try {
+                const response = await fetch(`${API_BASE}/memory/sessions`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    sessionListEl.innerHTML = '';
+                    data.data.forEach(sessionId => {
+                        const sessionItem = document.createElement('div');
+                        sessionItem.className = 'px-3 py-2 rounded hover:bg-gray-100 cursor-pointer';
+                        sessionItem.textContent = `会话 #${sessionId.split('_')[1]}`;
+                        sessionItem.onclick = () => {
+                            currentSessionId = sessionId;
+                            updateSessionIdDisplay();
+                            loadSessionMessages();
+                            sessionDropdown.classList.add('hidden');
+                        };
+                        sessionListEl.appendChild(sessionItem);
+                    });
+                }
+            } catch (error) {
+                console.error('加载会话失败:', error);
+            }
+        }
+
+        // 加载会话消息
+        async function loadSessionMessages() {
+            try {
+                const response = await fetch(`${API_BASE}/memory/operation`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        operation: 'get'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    const messages = data.data.messages || [];
+                    chatHistory = messages;
+                    messageCount = messages.length;
+                    messageCountEl.textContent = messageCount;
+                    
+                    // 渲染消息
+                    chatContainer.innerHTML = '';
+                    messages.forEach(msg => {
+                        addMessageToChat(msg.role, msg.content);
+                    });
+                    
+                    // 更新记忆面板
+                    updateMemoryPanel(messages);
+                }
+            } catch (error) {
+                console.error('加载会话消息失败:', error);
+            }
+        }
+
+        // 发送消息
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message) return;
+
+            // 添加用户消息
+            addMessageToChat('user', message);
+            chatInput.value = '';
+            messageCount++;
+            messageCountEl.textContent = messageCount;
+
+            // 显示加载状态
+            const loadingId = addLoadingMessage();
+
+            try {
+                // 调用Agent API
+                const response = await fetch(`${API_BASE}/agent/invoke`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        session_id: currentSessionId
+                    })
+                });
+
+                const data = await response.json();
+                
+                // 移除加载消息
+                removeLoadingMessage(loadingId);
+
+                if (data.success) {
+                    // 添加助手消息
+                    addMessageToChat('assistant', data.data.answer);
+                    messageCount++;
+                    messageCountEl.textContent = messageCount;
+
+                    // 更新记忆面板
+                    updateMemoryPanel();
+                } else {
+                    addMessageToChat('assistant', `错误: ${data.error}`);
+                    messageCount++;
+                    messageCountEl.textContent = messageCount;
+                }
+            } catch (error) {
+                // 移除加载消息
+                removeLoadingMessage(loadingId);
+                addMessageToChat('assistant', `API错误: ${error.message}`);
+                messageCount++;
+                messageCountEl.textContent = messageCount;
+            }
+        }
+
+        // 添加消息到聊天界面
+        function addMessageToChat(role, content) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `flex items-start space-x-3 ${role === 'user' ? 'flex-row-reverse' : ''}`;
+            
+            const icon = role === 'user' ? 'user' : 'robot';
+            const bgColor = role === 'user' ? 'bg-primary text-white' : 'bg-gray-100';
+            const textColor = role === 'user' ? 'text-white' : 'text-gray-700';
+            
+            messageEl.innerHTML = `
+                <div class="w-8 h-8 ${role === 'user' ? 'bg-primary' : 'bg-gray-100'} rounded-full flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="${icon}" class="w-5 h-5 ${role === 'user' ? 'text-white' : 'text-gray-600'}"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="${bgColor} rounded-lg p-3">
+                        <p class="${textColor}">${content}</p>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1 ${role === 'user' ? 'text-right' : ''}">
+                        ${role === 'user' ? '你' : '智能助手'} • 刚刚
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(messageEl);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // 重新初始化图标
+            lucide.createIcons();
+        }
+
+        // 添加加载消息
+        function addLoadingMessage() {
+            const loadingId = 'loading_' + Date.now();
+            const loadingEl = document.createElement('div');
+            loadingEl.id = loadingId;
+            loadingEl.className = 'flex items-start space-x-3';
+            loadingEl.innerHTML = `
+                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="robot" class="w-5 h-5 text-gray-600"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-gray-100 rounded-lg p-3">
+                        <div class="flex space-x-1">
+                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
+                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
+                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            chatContainer.appendChild(loadingEl);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            lucide.createIcons();
+            return loadingId;
+        }
+
+        // 移除加载消息
+        function removeLoadingMessage(loadingId) {
+            const loadingEl = document.getElementById(loadingId);
+            if (loadingEl) {
+                loadingEl.remove();
+            }
+        }
+
+        // 更新记忆面板
+        function updateMemoryPanel(messages) {
+            memoryContainerEl.innerHTML = '';
+            const displayMessages = messages || chatHistory;
+            
+            displayMessages.forEach((msg, index) => {
+                const memoryItem = document.createElement('div');
+                memoryItem.className = 'text-xs p-1 border-b border-gray-100';
+                memoryItem.innerHTML = `
+                    <div class="font-medium ${msg.role === 'user' ? 'text-primary' : 'text-gray-600'}">
+                        ${msg.role === 'user' ? '你' : '助手'}:
+                    </div>
+                    <div class="text-gray-500 line-clamp-2">${msg.content}</div>
+                `;
+                memoryContainerEl.appendChild(memoryItem);
+            });
+        }
+
+        // 新会话
+        function startNewSession() {
+            currentSessionId = 'session_' + Date.now();
+            updateSessionIdDisplay();
+            chatContainer.innerHTML = '';
+            chatHistory = [];
+            messageCount = 0;
+            messageCountEl.textContent = messageCount;
+            memoryContainerEl.innerHTML = '<div class="text-sm text-gray-500">会话开始</div>';
+            
+            // 添加欢迎消息
+            addMessageToChat('assistant', '你好！我是工业知识智能助手。请问有什么可以帮助你的？');
+            messageCount++;
+            messageCountEl.textContent = messageCount;
+        }
+
+        // 清空聊天
+        function clearChat() {
+            chatContainer.innerHTML = '';
+            chatHistory = [];
+            messageCount = 0;
+            messageCountEl.textContent = messageCount;
+            memoryContainerEl.innerHTML = '<div class="text-sm text-gray-500">会话开始</div>';
+        }
+
+        // 保存会话
+        async function saveSession() {
+            try {
+                const response = await fetch(`${API_BASE}/memory/operation`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSessionId,
+                        operation: 'save',
+                        data: {
+                            messages: chatHistory
+                        }
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    alert('会话已保存');
+                } else {
+                    alert('保存失败: ' + data.error);
+                }
+            } catch (error) {
+                alert('保存失败: ' + error.message);
+            }
+        }
+
+        // 事件监听
+        chatForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        newSessionBtn.addEventListener('click', startNewSession);
+        clearChatBtn.addEventListener('click', clearChat);
+        saveSessionBtn.addEventListener('click', saveSession);
+
+        sessionDropdownBtn.addEventListener('click', () => {
+            sessionDropdown.classList.toggle('hidden');
+        });
+
+        // 点击外部关闭下拉菜单
+        document.addEventListener('click', (e) => {
+            if (!sessionDropdownBtn.contains(e.target) && !sessionDropdown.contains(e.target)) {
+                sessionDropdown.classList.add('hidden');
+            }
+        });
+
+        // 初始化
+        init();
+    </script>
+</body>
+</html>
