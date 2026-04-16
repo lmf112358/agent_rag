@@ -19,6 +19,7 @@ __pycache__/
 
 # IDE配置
 .vscode/
+.claude/
 .idea/
 *.suo
 *.ntvs*

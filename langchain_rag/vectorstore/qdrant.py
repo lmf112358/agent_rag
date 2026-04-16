@@ -3,18 +3,19 @@ Qdrant向量存储封装
 支持通义千问Embedding，提供高效的向量检索能力
 """
 
-from typing import List, Optional, Dict, Any, Tuple
-from langchain.schema import Document, BaseRetriever
-from langchain.callbacks.manager import CallbackManagerForRetrieverRun
-from langchain.vectorstores.base import VectorStore
-from langchain.embeddings.base import Embeddings
+from typing import Iterable, List, Optional, Dict, Any, Tuple
+import uuid
+from langchain_core.documents import Document
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.callbacks.manager import CallbackManagerForRetrieverRun
+from langchain_core.vectorstores import VectorStore
+from langchain_core.embeddings import Embeddings
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from qdrant_client.http.exceptions import UnexpectedResponse
 import os
-import json
 
-from config.settings import config
+from langchain_rag.config.settings import config
 
 
 class DashScopeEmbeddings(Embeddings):
@@ -36,20 +37,18 @@ class DashScopeEmbeddings(Embeddings):
         self.api_key = api_key or os.getenv("DASHSCOPE_API_KEY", "")
         if not self.api_key:
             raise ValueError("API key is required. Set DASHSCOPE_API_KEY environment variable.")
-        self.client = None
-
-    def _get_client(self):
-        if self.client is None:
-            from dashscope import TextEmbedding
-            self.client = TextEmbedding(model=self.model_name, api_key=self.api_key)
-        return self.client
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """批量嵌入文档"""
-        client = self._get_client()
+        from dashscope import TextEmbedding
+
         results = []
         for text in texts:
-            response = client.call(text)
+            response = TextEmbedding.call(
+                model=self.model_name,
+                input=text,
+                api_key=self.api_key,
+            )
             if response.status_code != 200:
                 raise ValueError(f"Embedding API error: {response.code} - {response.message}")
             embedding = response.output['embeddings'][0]['embedding']
@@ -74,24 +73,75 @@ class QdrantVectorStore(VectorStore):
         port: int = 6333,
         collection_name: str = "agent_rag_knowledge",
         vector_dim: int = 1536,
-        distance: str = "Cosine",
+        distance: str = "COSINE",
         api_key: Optional[str] = None,
         embeddings: Optional[Embeddings] = None,
     ):
-        self.client = QdrantClient(
-            host=host,
-            port=port,
-            api_key=api_key or config.vectorstore.qdrant_api_key or None,
-        )
+        # 支持带 https:// 或 http:// 的完整 URL
+        if host.startswith("http://") or host.startswith("https://"):
+            self.client = QdrantClient(
+                url=host,
+                api_key=api_key or config.vectorstore.api_key or None,
+            )
+        else:
+            self.client = QdrantClient(
+                host=host,
+                port=port,
+                api_key=api_key or config.vectorstore.api_key or None,
+            )
         self.collection_name = collection_name
         self.vector_dim = vector_dim
-        self.distance = models.Distance[distance].value if isinstance(distance, str) else distance
-        self.embeddings = embeddings
+        # Distance 枚举使用全大写 (COSINE/EUCLID/DOT/MANHATTAN)
+        if isinstance(distance, str):
+            # 支持多种写法: Cosine/cosine/COSINE -> COSINE
+            dist_upper = distance.upper()
+            if dist_upper in ["COSINE", "EUCLIDEAN"]:
+                dist_upper = "COSINE"
+            self.distance = models.Distance[dist_upper].value
+        else:
+            self.distance = distance
+        # 使用内部变量存储 embeddings，覆盖基类的只读 property
+        self._embeddings = embeddings
+
+    @property
+    def embeddings(self) -> Optional[Embeddings]:
+        """获取 embeddings（覆盖基类只读 property）"""
+        return self._embeddings
 
     def __del__(self):
         """清理资源"""
         if hasattr(self, 'client'):
             del self.client
+
+    @classmethod
+    def from_texts(
+        cls,
+        texts: List[str],
+        embedding: Embeddings,
+        metadatas: Optional[List[dict]] = None,
+        host: str = "localhost",
+        port: int = 6333,
+        collection_name: str = "agent_rag_knowledge",
+        vector_dim: Optional[int] = None,
+        distance: str = "Cosine",
+        api_key: Optional[str] = None,
+        batch_size: int = 100,
+        **kwargs: Any,
+    ) -> "QdrantVectorStore":
+        """从文本列表创建向量存储（VectorStore 抽象方法实现）"""
+        vector_dim = vector_dim or len(embedding.embed_query("test"))
+        instance = cls(
+            host=host,
+            port=port,
+            collection_name=collection_name,
+            vector_dim=vector_dim,
+            distance=distance,
+            api_key=api_key,
+            embeddings=embedding,
+        )
+        instance._create_collection_if_not_exists(vector_dim, distance)
+        instance.add_texts(texts, metadatas=metadatas, batch_size=batch_size)
+        return instance
 
     @classmethod
     def from_documents(
@@ -105,6 +155,7 @@ class QdrantVectorStore(VectorStore):
         distance: str = "Cosine",
         api_key: Optional[str] = None,
         batch_size: int = 100,
+        **kwargs: Any,
     ) -> "QdrantVectorStore":
         """从文档列表创建向量存储"""
         vector_dim = vector_dim or len(embeddings.embed_query("test"))
@@ -117,7 +168,6 @@ class QdrantVectorStore(VectorStore):
             api_key=api_key,
             embeddings=embeddings,
         )
-
         instance._create_collection_if_not_exists(vector_dim, distance)
         instance.add_documents(documents, batch_size=batch_size)
         return instance
@@ -127,13 +177,59 @@ class QdrantVectorStore(VectorStore):
         try:
             self.client.get_collection(self.collection_name)
         except (UnexpectedResponse, Exception):
+            # Distance 枚举使用全大写 (COSINE/EUCLID/DOT/MANHATTAN)
+            if isinstance(distance, str):
+                dist_upper = distance.upper()
+                if dist_upper in ["COSINE", "EUCLIDEAN"]:
+                    dist_upper = "COSINE"
+                dist_enum = models.Distance[dist_upper]
+            else:
+                dist_enum = distance
+
             self.client.create_collection(
                 collection_name=self.collection_name,
                 vectors_config=models.VectorParams(
                     size=vector_dim,
-                    distance=models.Distance[distance],
+                    distance=dist_enum,
                 ),
             )
+
+    def add_texts(
+        self,
+        texts: Iterable[str],
+        metadatas: Optional[List[dict]] = None,
+        ids: Optional[List[str]] = None,
+        batch_size: int = 100,
+        **kwargs: Any,
+    ) -> List[str]:
+        """将文本列表嵌入并写入 Qdrant（VectorStore 抽象方法实现）"""
+        texts_list = list(texts)
+        if not texts_list:
+            return []
+
+        if metadatas is None:
+            metadatas = [{} for _ in texts_list]
+        if ids is None:
+            ids = [str(uuid.uuid4()) for _ in texts_list]
+
+        embeddings_list = self.embeddings.embed_documents(texts_list)
+
+        for i in range(0, len(texts_list), batch_size):
+            batch_slice = slice(i, i + batch_size)
+            points = [
+                models.PointStruct(
+                    id=ids[i + j],
+                    vector=embeddings_list[i + j],
+                    payload={
+                        "page_content": texts_list[i + j],
+                        "metadata": metadatas[i + j],
+                    },
+                )
+                for j in range(len(texts_list[batch_slice]))
+            ]
+            self.client.upsert(collection_name=self.collection_name, points=points)
+
+        return ids
 
     def add_documents(
         self,
@@ -147,36 +243,7 @@ class QdrantVectorStore(VectorStore):
 
         texts = [doc.page_content for doc in documents]
         metadatas = [doc.metadata for doc in documents]
-
-        embeddings = self.embeddings.embed_documents(texts)
-
-        if ids is None:
-            ids = [f"doc_{i}" for i in range(len(documents))]
-
-        for i in range(0, len(documents), batch_size):
-            batch_texts = texts[i:i + batch_size]
-            batch_embeddings = embeddings[i:i + batch_size]
-            batch_metadatas = metadatas[i:i + batch_size]
-            batch_ids = ids[i:i + batch_size]
-
-            points = [
-                models.PointStruct(
-                    id=batch_ids[idx],
-                    vector=batch_embeddings[idx],
-                    payload={
-                        "page_content": batch_texts[idx],
-                        "metadata": batch_metadatas[idx],
-                    },
-                )
-                for idx in range(len(batch_texts))
-            ]
-
-            self.client.upsert(
-                collection_name=self.collection_name,
-                points=points,
-            )
-
-        return ids
+        return self.add_texts(texts, metadatas=metadatas, ids=ids, batch_size=batch_size)
 
     def similarity_search(
         self,
@@ -185,29 +252,51 @@ class QdrantVectorStore(VectorStore):
         filter: Optional[Dict[str, Any]] = None,
         score_threshold: Optional[float] = None,
     ) -> List[Document]:
-        """相似度搜索"""
+        """相似度搜索（兼容不同版本的 QdrantClient）"""
         query_embedding = self.embeddings.embed_query(query)
 
-        search_params = models.SearchParams(
-            hnsw_algorithm=models.HnswSearchParams(ef=128)
-        )
+        results = []
 
-        results = self.client.search(
-            collection_name=self.collection_name,
-            query_vector=query_embedding,
-            limit=k,
-            query_filter=self._convert_filter(filter) if filter else None,
-            search_params=search_params,
-            score_threshold=score_threshold,
-        )
-
-        return [
-            Document(
-                page_content=hit.payload["page_content"],
-                metadata=hit.payload["metadata"],
+        # 尝试多种可能的搜索方法
+        if hasattr(self.client, "search"):
+            # 新版本 API
+            results = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                limit=k,
             )
-            for hit in results
-        ]
+        elif hasattr(self.client, "query_points"):
+            # 旧版本 API
+            results = self.client.query_points(
+                collection_name=self.collection_name,
+                query=query_embedding,
+                limit=k,
+            ).points
+        elif hasattr(self.client, "http") and hasattr(self.client.http, "points_api"):
+            # 直接用底层 API
+            from qdrant_client.http import models
+            results = self.client.http.points_api.search_points(
+                collection_name=self.collection_name,
+                search_request=models.SearchRequest(
+                    vector=query_embedding,
+                    limit=k,
+                    with_payload=True,
+                ),
+            ).result
+
+        docs = []
+        for hit in results:
+            # 兼容不同的返回结构
+            payload = {}
+            if hasattr(hit, "payload"):
+                payload = hit.payload or {}
+            elif isinstance(hit, dict) and "payload" in hit:
+                payload = hit["payload"] or {}
+
+            page_content = payload.get("page_content", "")
+            metadata = payload.get("metadata", {})
+            docs.append(Document(page_content=page_content, metadata=metadata))
+        return docs
 
     def similarity_search_with_score(
         self,
@@ -292,12 +381,18 @@ class QdrantVectorStore(VectorStore):
         """获取集合信息"""
         try:
             info = self.client.get_collection(self.collection_name)
-            return {
+            result = {
                 "name": self.collection_name,
-                "vectors_count": info.vectors_count,
-                "points_count": info.points_count,
-                "status": info.status,
+                "status": info.status if hasattr(info, "status") else "unknown",
             }
+            # 安全访问可能不存在的字段
+            if hasattr(info, "vectors_count"):
+                result["vectors_count"] = info.vectors_count
+            if hasattr(info, "points_count"):
+                result["points_count"] = info.points_count
+            if hasattr(info, "config") and hasattr(info.config, "params"):
+                result["vector_size"] = info.config.params.vectors.size
+            return result
         except Exception as e:
             return {"error": str(e)}
 
@@ -380,9 +475,10 @@ class QdrantVectorStoreFactory:
             collection_name=collection_name,
             embeddings=embeddings,
         )
+        cfg = config.vectorstore
         vectorstore._create_collection_if_not_exists(
             vector_dim=vectorstore.vector_dim,
-            distance=cfg.distance if (cfg := config.vectorstore) else "Cosine",
+            distance=cfg.distance if cfg else "COSINE",
         )
         vectorstore.add_documents(documents, batch_size=batch_size)
         return vectorstore

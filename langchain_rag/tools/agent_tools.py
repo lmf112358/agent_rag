@@ -3,13 +3,12 @@ Tools模块 - Agent核心工具集
 包含: 知识检索工具、报价复核工具、合规审核工具
 """
 
-from typing import TypeVar, Optional, Dict, Any, List
-from pydantic import BaseModel, Field
-from langchain.tools import BaseTool, Tool
-from langchain.schema import Document
+from typing import Optional, Dict, Any, List
+from pydantic import BaseModel, Field, ConfigDict
+from langchain_core.tools import BaseTool
 
-from vectorstore.qdrant import QdrantVectorStore, QdrantRetriever
-from rag.retrieval import AdvancedRAGChain
+from langchain_rag.vectorstore.qdrant import QdrantVectorStore
+from langchain_rag.rag.retrieval import AdvancedRAGChain
 
 
 class KnowledgeRetrievalInput(BaseModel):
@@ -34,6 +33,8 @@ class ComplianceCheckInput(BaseModel):
 class KnowledgeRetrievalTool(BaseTool):
     """知识检索工具"""
 
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
     name: str = "knowledge_retriever"
     description: str = """用于回答企业专业知识库相关的问题。当你需要查询:
 - 空调系统设计规范
@@ -41,15 +42,8 @@ class KnowledgeRetrievalTool(BaseTool):
 - 历史项目经验
 - 行业标准要求
 等问题时使用此工具。"""
-
-    def __init__(
-        self,
-        vectorstore: Optional[QdrantVectorStore] = None,
-        rag_chain: Optional[AdvancedRAGChain] = None,
-    ):
-        super().__init__()
-        self.vectorstore = vectorstore
-        self.rag_chain = rag_chain
+    vectorstore: Optional[QdrantVectorStore] = None
+    rag_chain: Optional[AdvancedRAGChain] = None
 
     def _run(self, query: str, top_k: int = 5, use_query_transform: bool = True) -> Dict[str, Any]:
         """执行知识检索"""
@@ -85,21 +79,11 @@ class QuoteValidationTool(BaseTool):
 3. 供应商白名单: 报价中供应商必须在认证名录内
 
 注意: 所有数值计算使用Python硬逻辑，不依赖LLM。"""
-
-    def __init__(
-        self,
-        historical_prices: Optional[Dict[str, float]] = None,
-        supplier_whitelist: Optional[List[str]] = None,
-        material_cost_ratio: float = 0.7,
-        labor_cost_ratio: float = 0.15,
-        management_cost_ratio: float = 0.15,
-    ):
-        super().__init__()
-        self.historical_prices = historical_prices or {}
-        self.supplier_whitelist = supplier_whitelist or []
-        self.material_cost_ratio = material_cost_ratio
-        self.labor_cost_ratio = labor_cost_ratio
-        self.management_cost_ratio = management_cost_ratio
+    historical_prices: Dict[str, float] = Field(default_factory=dict)
+    supplier_whitelist: List[str] = Field(default_factory=list)
+    material_cost_ratio: float = 0.7
+    labor_cost_ratio: float = 0.15
+    management_cost_ratio: float = 0.15
 
     def _calculate_total_price(self, price: float, quantity: float) -> float:
         """计算总价"""
@@ -216,8 +200,17 @@ class QuoteValidationTool(BaseTool):
         return self._run(quote_text, historical_avg_price)
 
 
+_DEFAULT_STANDARDS: Dict[str, Dict[str, Any]] = {
+    "COP": {"min_value": 6.0, "description": "制冷性能系数"},
+    "IPLV": {"min_value": 5.0, "description": "综合部分负荷值"},
+    "能效等级": {"min_value": 1, "max_value": 3, "description": "一级/二级/三级能效"},
+}
+
+
 class ComplianceCheckTool(BaseTool):
     """合规审核工具 - 检查投标方案是否符合规范"""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     name: str = "compliance_checker"
     description: str = """用于审核投标方案的技术合规性。支持检查:
@@ -227,19 +220,8 @@ class ComplianceCheckTool(BaseTool):
 - 技术规格响应
 
 返回置信度评估，低于0.75自动触发人工审核。"""
-
-    def __init__(
-        self,
-        llm: Optional[Any] = None,
-        standards: Optional[Dict[str, Dict[str, Any]]] = None,
-    ):
-        super().__init__()
-        self.llm = llm
-        self.standards = standards or {
-            "COP": {"min_value": 6.0, "description": "制冷性能系数"},
-            "IPLV": {"min_value": 5.0, "description": "综合部分负荷值"},
-            "能效等级": {"min_value": 1, "max_value": 3, "description": "一级/二级/三级能效"},
-        }
+    llm: Optional[Any] = None
+    standards: Dict[str, Dict[str, Any]] = Field(default_factory=lambda: dict(_DEFAULT_STANDARDS))
 
     def _check_cop_compliance(self, cop_value: float) -> Dict[str, Any]:
         """检查COP合规性"""

@@ -1,4 +1,4 @@
-# Agentic RAG - langchain_rag 核心依赖
+# Agentic RAG - 全量依赖（开发 / CI 用）
 # 与 conda 环境 agent_rag 中安装的版本保持一致
 
 # Core LangChain ecosystem (官方包，无第三方扩展)
@@ -24,6 +24,16 @@ qdrant-client>=1.7.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 python-dotenv>=1.0.0
+
+# FastAPI Backend
+fastapi>=0.104.0
+uvicorn>=0.24.0
+alembic>=1.12.0
+sqlalchemy>=2.0.23
+redis>=5.0.1
+requests>=2.31.0
+httpx>=0.25.2
+fastapi[all]
 
 # Testing
 pytest>=7.4.0

@@ -5,23 +5,217 @@
 
 import os
 import re
-from typing import List, Optional, Dict, Any, Callable, Union
+from typing import List, Optional, Dict, Any, Callable
 from pathlib import Path
-from langchain.schema import Document
-from langchain.text_splitter import (
-    RecursiveCharacterTextSplitter,
-    TextSplitter,
-    CharacterTextSplitter,
-)
-from langchain.document_loaders import (
-    PyPDFLoader,
-    UnstructuredWordDocumentLoader,
-    UnstructuredExcelLoader,
-    UnstructuredPowerPointLoader,
-    CSVLoader,
-    TextLoader,
-)
-from langchain.document_loaders.base import BaseLoader
+from langchain_core.documents import Document
+
+
+class BaseLoader:
+    """基础文档加载器"""
+
+    def load(self) -> List[Document]:
+        raise NotImplementedError
+
+
+class TextLoader(BaseLoader):
+    """文本加载器（内置，无第三方依赖）"""
+
+    def __init__(self, file_path: str, encoding: str = "utf-8", *args, **kwargs):
+        self.file_path = file_path
+        self.encoding = encoding
+
+    def load(self) -> List[Document]:
+        with open(self.file_path, "r", encoding=self.encoding, errors="ignore") as file:
+            content = file.read()
+        return [Document(page_content=content, metadata={"source": self.file_path})]
+
+
+class CSVLoader(BaseLoader):
+    """CSV加载器（内置，无第三方依赖）"""
+
+    def __init__(self, file_path: str, encoding: str = "utf-8", *args, **kwargs):
+        self.file_path = file_path
+        self.encoding = encoding
+
+    def load(self) -> List[Document]:
+        import csv
+
+        rows: List[str] = []
+        with open(self.file_path, "r", encoding=self.encoding, errors="ignore", newline="") as file:
+            reader = csv.reader(file)
+            for row in reader:
+                rows.append(",".join(row))
+
+        return [Document(page_content="\n".join(rows), metadata={"source": self.file_path})]
+
+
+class PyPDFLoader(BaseLoader):
+    """PDF 加载器（使用 pypdf）"""
+
+    def __init__(self, file_path: str, *args, **kwargs):
+        self.file_path = file_path
+
+    def load(self) -> List[Document]:
+        try:
+            from pypdf import PdfReader
+        except ImportError:
+            raise ImportError("pypdf is required. Install it: pip install pypdf")
+
+        reader = PdfReader(self.file_path)
+        docs = []
+        for page_num, page in enumerate(reader.pages):
+            text = page.extract_text() or ""
+            if text.strip():
+                metadata = {
+                    "source": self.file_path,
+                    "page": page_num + 1,
+                }
+                docs.append(Document(page_content=text, metadata=metadata))
+        return docs
+
+
+class UnstructuredWordDocumentLoader(BaseLoader):
+    """DOCX 加载器（使用 python-docx）"""
+
+    def __init__(self, file_path: str, *args, **kwargs):
+        self.file_path = file_path
+
+    def load(self) -> List[Document]:
+        try:
+            from docx import Document as DocxDocument
+        except ImportError:
+            raise ImportError("python-docx is required. Install it: pip install python-docx")
+
+        doc = DocxDocument(self.file_path)
+        full_text = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                full_text.append(para.text)
+
+        text = "\n".join(full_text)
+        if not text.strip():
+            return []
+
+        return [Document(page_content=text, metadata={"source": self.file_path})]
+
+
+class UnstructuredExcelLoader(BaseLoader):
+    """Excel 加载器（可选，提示安装）"""
+
+    def __init__(self, file_path: str, *args, **kwargs):
+        self.file_path = file_path
+
+    def load(self) -> List[Document]:
+        try:
+            import pandas as pd
+        except ImportError:
+            raise ImportError("pandas is required for Excel. Install it: pip install pandas")
+
+        df = pd.read_excel(self.file_path)
+        text = df.to_csv(sep="\t", na_rep="")
+        return [Document(page_content=text, metadata={"source": self.file_path})]
+
+
+class UnstructuredPowerPointLoader(BaseLoader):
+    """PPT 加载器（可选，提示安装）"""
+
+    def __init__(self, file_path: str, *args, **kwargs):
+        self.file_path = file_path
+
+    def load(self) -> List[Document]:
+        try:
+            from pptx import Presentation
+        except ImportError:
+            raise ImportError("python-pptx is required for PowerPoint. Install it: pip install python-pptx")
+
+        prs = Presentation(self.file_path)
+        texts = []
+        for slide in prs.slides:
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    texts.append(shape.text)
+
+        text = "\n".join(texts)
+        if not text.strip():
+            return []
+
+        return [Document(page_content=text, metadata={"source": self.file_path})]
+
+
+class RecursiveCharacterTextSplitter:
+    """简化递归文本分割器（无 langchain-text-splitters 依赖）"""
+
+    def __init__(
+        self,
+        chunk_size: int = 512,
+        chunk_overlap: int = 100,
+        separators: Optional[List[str]] = None,
+        length_function: Callable[[str], int] = len,
+        add_start_index: bool = False,
+        **kwargs,
+    ):
+        self.chunk_size = chunk_size
+        self.chunk_overlap = chunk_overlap
+        self.separators = separators or ["\n\n", "\n", " ", ""]
+        self.length_function = length_function
+        self.add_start_index = add_start_index
+
+    def split_text(self, text: str) -> List[str]:
+        if not text:
+            return []
+
+        chunks: List[str] = []
+        start = 0
+        total_len = len(text)
+
+        while start < total_len:
+            max_end = min(start + self.chunk_size, total_len)
+            end = max_end
+
+            if max_end < total_len:
+                window = text[start:max_end]
+                for sep in self.separators:
+                    if not sep:
+                        continue
+                    idx = window.rfind(sep)
+                    if idx > 0:
+                        end = start + idx + len(sep)
+                        break
+
+            chunk = text[start:end].strip()
+            if chunk:
+                chunks.append(chunk)
+
+            if end >= total_len:
+                break
+
+            start = max(end - self.chunk_overlap, start + 1)
+
+        return chunks
+
+    def split_documents(self, documents: List[Document]) -> List[Document]:
+        split_docs: List[Document] = []
+
+        for doc in documents:
+            chunks = self.split_text(doc.page_content)
+            cursor = 0
+
+            for chunk in chunks:
+                metadata = dict(doc.metadata) if doc.metadata else {}
+                if self.add_start_index:
+                    idx = doc.page_content.find(chunk, cursor)
+                    if idx < 0:
+                        idx = cursor
+                    metadata["start_index"] = idx
+                    cursor = idx + len(chunk)
+
+                split_docs.append(Document(page_content=chunk, metadata=metadata))
+
+        return split_docs
+
+
+class CharacterTextSplitter(RecursiveCharacterTextSplitter):
+    """兼容占位：与递归分割器保持一致"""
 
 
 class ChunkConfig:
@@ -166,35 +360,20 @@ class ChineseTextSplitter(RecursiveCharacterTextSplitter):
 
     def split_text(self, text: str) -> List[str]:
         """分割文本"""
-        chunks = []
-        for separator in self.separators:
-            if separator == "":
-                continue
-            combined_separator = separator
-            if len(chunks) > 0:
-                last_chunk = chunks[-1]
-                new_chunks = []
-                for chunk in text.split(separator):
-                    if new_chunks and chunk:
-                        new_chunks[-1] = new_chunks[-1] + combined_separator + chunk
-                    elif chunk:
-                        new_chunks.append(chunk)
-                chunks = new_chunks
+        # 委托给父类的递归分割逻辑，仅在需要时对超长块做中文友好二次切割
+        parent_chunks = super().split_text(text)
+        result: List[str] = []
+        for chunk in parent_chunks:
+            if len(chunk) <= self.chunk_size:
+                result.append(chunk)
             else:
-                chunks = text.split(separator)
+                result.extend(self._safe_split_to_list(chunk))
+        return result
 
-            if all(len(chunk) <= self.chunk_size for chunk in chunks):
-                break
-
-        if len(chunks) == 1:
-            return self._safe_split(chunks[0])
-        else:
-            return [self._safe_split(chunk) for chunk in chunks if chunk]
-
-    def _safe_split(self, text: str) -> str:
-        """安全分割长文本"""
+    def _safe_split_to_list(self, text: str) -> List[str]:
+        """将超长文本按中文标点安全切割为若干块"""
         if len(text) <= self.chunk_size:
-            return text
+            return [text]
 
         chunks = []
         start = 0
@@ -210,7 +389,7 @@ class ChineseTextSplitter(RecursiveCharacterTextSplitter):
             if chunk:
                 chunks.append(chunk)
             start = end
-        return "\n\n".join(chunks) if chunks else text
+        return chunks if chunks else [text]
 
 
 class MarkdownProcessor:

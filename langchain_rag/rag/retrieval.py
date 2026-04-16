@@ -3,24 +3,13 @@ RAG检索链模块
 实现基础RAG + 高级检索策略（Query Transformation, Reranking等）
 """
 
-from typing import List, Optional, Dict, Any, Callable
-from langchain.schema import Document, BaseRetriever
-from langchain.callbacks.manager import CallbackManagerForRetrieverRun, Callbacks
-from langchain.retrievers import ContextualCompressionRetriever
-from langchain.retrievers.document_compressors import (
-    DocumentCompressorPipeline,
-    LLMChainExtractor,
-    LLMChainFilter,
-)
-from langchain.chains import RetrievalQA, ConversationalRetrievalChain
-from langchain.chains.base import Chain
-from langchain.prompts import PromptTemplate, ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.schema import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from pydantic import Field
+from typing import List, Optional, Dict, Any
+from langchain_core.documents import Document
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 
-from llm.qwen import ChatQwen, get_qwen_chat
-from vectorstore.qdrant import QdrantVectorStore, QdrantRetriever, DashScopeEmbeddings
-from document.processor import ChunkConfig
+from langchain_rag.llm.qwen import ChatQwen, get_qwen_chat
+from langchain_rag.vectorstore.qdrant import QdrantVectorStore
+from langchain_rag.document.processor import ChunkConfig
 
 
 class QueryTransformer:
@@ -140,49 +129,6 @@ class Reranker:
         if numbers:
             return float(numbers[0])
         return 0.0
-
-
-class BaseRAGChain(Chain):
-    """基础RAG链"""
-
-    retriever: BaseRetriever
-    llm: ChatQwen
-    prompt: ChatPromptTemplate
-    return_source_documents: bool = True
-
-    @property
-    def input_keys(self) -> List[str]:
-        return ["query"]
-
-    @property
-    def output_keys(self) -> List[str]:
-        if self.return_source_documents:
-            return ["result", "source_documents"]
-        return ["result"]
-
-    def _call(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
-        """执行RAG链"""
-        query = inputs["query"]
-
-        docs = self.retriever.get_relevant_documents(query)
-
-        context = "\n\n".join([doc.page_content for doc in docs])
-
-        system_prompt = self.prompt.messages[0].content
-        human_prompt = self.prompt.messages[1].content
-
-        messages = [
-            SystemMessage(content=system_prompt.format(context=context)),
-            HumanMessage(content=human_prompt.format(question=query)),
-        ]
-
-        response = self.llm.invoke(messages)
-
-        result = {"result": response.content}
-        if self.return_source_documents:
-            result["source_documents"] = docs
-
-        return result
 
 
 class AdvancedRAGChain:
@@ -340,24 +286,13 @@ class RAGPipelineFactory:
     def create_basic_rag(
         vectorstore: QdrantVectorStore,
         llm: Optional[ChatQwen] = None,
-    ) -> BaseRAGChain:
-        """创建基础RAG链"""
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessagePromptTemplate.from_template(
-                "你是一个专业的工业暖通空调领域专家。基于提供的上下文信息，回答用户的问题。\n\n提供的上下文:\n{context}"
-            ),
-            HumanMessagePromptTemplate.from_template("{question}"),
-        ])
-
-        retriever = QdrantRetriever(
+    ) -> AdvancedRAGChain:
+        """创建基础RAG链（轻量高级链参数）"""
+        return AdvancedRAGChain(
             vectorstore=vectorstore,
-            k=5,
-        )
-
-        return BaseRAGChain(
-            retriever=retriever,
-            llm=llm or get_qwen_chat(),
-            prompt=prompt,
+            llm=llm,
+            retrieval_top_k=5,
+            rerank_top_k=5,
         )
 
     @staticmethod

@@ -4,9 +4,13 @@
 
 import json
 import time
-import redis
 from typing import Dict, Any, Optional, List
 from backend.config.settings import settings
+
+try:
+    import redis
+except ImportError:
+    redis = None
 
 
 class MemoryService:
@@ -17,7 +21,7 @@ class MemoryService:
         self.max_session_length = settings.memory.max_session_length
         self.session_ttl = settings.memory.session_ttl
         
-        if self.memory_type == "redis":
+        if self.memory_type == "redis" and redis is not None:
             self.redis = redis.Redis(
                 host=settings.redis.host,
                 port=settings.redis.port,
@@ -26,6 +30,7 @@ class MemoryService:
                 decode_responses=True
             )
         else:
+            self.memory_type = "inmemory"
             self.in_memory = {}
 
     def get_session(self, session_id: str) -> Dict[str, Any]:

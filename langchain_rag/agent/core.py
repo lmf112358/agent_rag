@@ -4,18 +4,18 @@ Agent核心模块
 支持Human-in-the-Loop容错机制
 """
 
-from typing import TypedDict, Annotated, Sequence, Literal, Optional, Dict, Any, List, Union, Callable
-from langchain.schema import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain.tools import BaseTool, Tool
-from langchain.graph import StateGraph, END
+from typing import TypedDict, Annotated, Sequence, Literal, Optional, Dict, Any, List
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+from langchain_core.tools import BaseTool
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
 from pydantic import BaseModel, Field
 from enum import Enum
-import operator
 
 
 class AgentState(TypedDict):
     """Agent状态定义"""
-    messages: Annotated[Sequence[BaseMessage], operator.add]
+    messages: Annotated[Sequence[BaseMessage], add_messages]
     current_query: str
     intent: Optional[str]
     selected_tools: Optional[List[str]]
