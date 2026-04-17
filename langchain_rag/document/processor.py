@@ -5,7 +5,7 @@
 
 import os
 import re
-from typing import List, Optional, Dict, Any, Callable
+from typing import List, Optional, Dict, Any, Callable,Tuple
 from pathlib import Path
 from langchain_core.documents import Document
 
@@ -322,9 +322,93 @@ class DocumentProcessor:
         documents: List[Document],
         chunk_config: Optional[ChunkConfig] = None,
     ) -> List[Document]:
-        """分割文档为块"""
+        """分割文档为块（表格感知）"""
         cfg = chunk_config or self.chunk_config
+        split_docs: List[Document] = []
 
+        for doc in documents:
+            content = doc.page_content
+            metadata = dict(doc.metadata) if doc.metadata else {}
+
+            # 检测是否包含 Markdown 表格
+            if "|" in content and "\n|" in content:
+                # 尝试表格感知分块
+                table_chunks = self._split_table_aware(content, metadata, cfg)
+                split_docs.extend(table_chunks)
+            else:
+                # 普通文本分块
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=cfg.chunk_size,
+                    chunk_overlap=cfg.chunk_overlap,
+                    separators=cfg.separators,
+                    length_function=cfg.length_function,
+                    add_start_index=True,
+                )
+                chunks = text_splitter.split_text(content)
+                for i, chunk in enumerate(chunks):
+                    chunk_meta = dict(metadata)
+                    chunk_meta["chunk_type"] = "text"
+                    chunk_meta["chunk_index"] = i
+                    split_docs.append(Document(page_content=chunk, metadata=chunk_meta))
+
+        return split_docs
+
+    def _split_table_aware(
+        self,
+        content: str,
+        metadata: Dict[str, Any],
+        cfg: ChunkConfig,
+    ) -> List[Document]:
+        """表格感知分块：整表保留 + 文本语义分块"""
+        chunks: List[Document] = []
+
+        # 简单实现：先按 Markdown 表格边界分割
+        lines = content.split("\n")
+        current_text = []
+        in_table = False
+        current_table = []
+
+        for line in lines:
+            # 检测表格行（以 | 开头或包含 |）
+            is_table_line = line.strip().startswith("|") or (line.count("|") >= 2)
+
+            if is_table_line:
+                if not in_table:
+                    # 先输出之前的文本
+                    if current_text:
+                        self._add_text_chunk(current_text, metadata, chunks, cfg)
+                        current_text = []
+                    in_table = True
+                current_table.append(line)
+            else:
+                if in_table:
+                    # 输出表格
+                    self._add_table_chunk(current_table, metadata, chunks)
+                    current_table = []
+                    in_table = False
+                current_text.append(line)
+
+        # 输出剩余内容
+        if in_table and current_table:
+            self._add_table_chunk(current_table, metadata, chunks)
+        elif current_text:
+            self._add_text_chunk(current_text, metadata, chunks, cfg)
+
+        return chunks
+
+    def _add_text_chunk(
+        self,
+        lines: List[str],
+        base_meta: Dict[str, Any],
+        chunks: List[Document],
+        cfg: ChunkConfig,
+    ):
+        """添加文本块"""
+        text = "\n".join(lines).strip()
+        if not text:
+            return
+
+        # 文本太长时分块
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=cfg.chunk_size,
             chunk_overlap=cfg.chunk_overlap,
@@ -332,8 +416,51 @@ class DocumentProcessor:
             length_function=cfg.length_function,
             add_start_index=True,
         )
+        text_chunks = text_splitter.split_text(text)
+        for i, chunk in enumerate(text_chunks):
+            meta = dict(base_meta)
+            meta["chunk_type"] = "text"
+            meta["chunk_index"] = len(chunks)
+            chunks.append(Document(page_content=chunk, metadata=meta))
 
-        return text_splitter.split_documents(documents)
+    def _add_table_chunk(
+        self,
+        lines: List[str],
+        base_meta: Dict[str, Any],
+        chunks: List[Document],
+    ):
+        """添加表格块（整表保留）"""
+        table_content = "\n".join(lines).strip()
+        if not table_content:
+            return
+
+        # 超大表降级：按字符数截断（保留表头）
+        MAX_TABLE_CHARS = 2000
+        if len(table_content) > MAX_TABLE_CHARS:
+            # 尝试找到表头
+            header_lines = []
+            body_lines = []
+            for i, line in enumerate(lines):
+                if i < 3:
+                    header_lines.append(line)
+                else:
+                    body_lines.append(line)
+
+            # 每 10 行一个 chunk，重复表头
+            rows_per_chunk = 10
+            for i in range(0, len(body_lines), rows_per_chunk):
+                chunk_lines = header_lines + body_lines[i:i+rows_per_chunk]
+                chunk_content = "\n".join(chunk_lines)
+                meta = dict(base_meta)
+                meta["chunk_type"] = "parameter_table"
+                meta["chunk_index"] = len(chunks)
+                chunks.append(Document(page_content=chunk_content, metadata=meta))
+        else:
+            # 整表保留
+            meta = dict(base_meta)
+            meta["chunk_type"] = "parameter_table"
+            meta["chunk_index"] = len(chunks)
+            chunks.append(Document(page_content=table_content, metadata=meta))
 
 
 class ChineseTextSplitter(RecursiveCharacterTextSplitter):
@@ -483,6 +610,119 @@ class DocumentMetadata:
             "file_extension": path.suffix,
             "file_size": os.path.getsize(file_path),
         }
+
+    @staticmethod
+    def from_path_advanced(file_path: str, root_dir: str = "data") -> Dict[str, Any]:
+        """
+        从路径提取高级元数据（基于珠海深联真实目录结构）
+
+        路径示例: data/珠海深联高效机房资料20241024/EQP-设备技术资料/EQP-01 冷水机组/特灵---10-22/CCTV - CCTV-1650RT-6.45 - Product Report.pdf
+        """
+        path = Path(file_path)
+        root = Path(root_dir)
+
+        # 基础元数据
+        metadata = DocumentMetadata.from_file_path(file_path)
+
+        # 计算相对路径部分
+        try:
+            rel_parts = list(path.relative_to(root).parts)
+        except ValueError:
+            rel_parts = []
+
+        # L1: project_name (去掉日期后缀)
+        if len(rel_parts) >= 1:
+            project_dir = rel_parts[0]
+            # 去掉日期后缀: "珠海深联高效机房资料20241024" -> "珠海深联高效机房"
+            project_name = re.sub(r'资料\d{8}$', '', project_dir)
+            project_name = re.sub(r'\d{8}$', '', project_name)
+            metadata["project_name"] = project_name
+
+        # L2: doc_type (去掉前缀: "EQP-设备技术资料" -> "设备技术资料")
+        if len(rel_parts) >= 2:
+            doc_type_dir = rel_parts[1]
+            doc_type = re.sub(r'^[A-Z]+-', '', doc_type_dir)
+            metadata["doc_type"] = doc_type
+
+        # L3: equipment_category (去掉前缀: "EQP-01 冷水机组" -> "冷水机组")
+        if len(rel_parts) >= 3:
+            eq_cat_dir = rel_parts[2]
+            eq_cat = re.sub(r'^[A-Z]+-\d+\s*', '', eq_cat_dir)
+            metadata["equipment_category"] = eq_cat
+
+        # L4: brand (如果存在第四级目录)
+        if len(rel_parts) >= 4:
+            brand_dir = rel_parts[3]
+            brand = DocumentMetadata._extract_brand(brand_dir)
+            if brand:
+                metadata["brand"] = brand
+
+        # 从文件名提取 model_spec
+        model_spec, model_spec_raw = DocumentMetadata._extract_model_spec(path.name)
+        if model_spec:
+            metadata["model_spec"] = model_spec
+            metadata["model_spec_raw"] = model_spec_raw
+
+        # 从文件名提取 file_type_tag
+        file_type_tag = DocumentMetadata._extract_file_type_tag(path.name)
+        if file_type_tag:
+            metadata["file_type_tag"] = file_type_tag
+
+        return metadata
+
+    @staticmethod
+    def _extract_brand(brand_dir: str) -> Optional[str]:
+        """从目录名提取品牌"""
+        BRAND_PATTERNS = {
+            "特灵": ["特灵", "Trane", "CCTV"],
+            "开利": ["开利", "Carrier", "19XR"],
+            "约克": ["约克", "York"],
+            "麦克维尔": ["麦克维尔", "McQuay"],
+            "良机": ["良机", "LiangChi", "LCP"],
+            "元亨": ["元亨", "Yuanheng"],
+            "凯泉": ["凯泉", "Kaiquan"],
+        }
+        for brand, patterns in BRAND_PATTERNS.items():
+            for p in patterns:
+                if p in brand_dir:
+                    return brand
+        return None
+
+    @staticmethod
+    def _extract_model_spec(filename: str) -> Tuple[Optional[str], str]:
+        """从文件名提取型号（标准化 + 原始）"""
+        raw = filename
+        # 尝试正则模式
+        MODEL_PATTERNS = [
+            # 特灵模式: CCTV-1650RT-6.45
+            r'(CCTV)[-\s]?(\d+)RT[-\s]?(\d+\.\d+)',
+            # 开利模式: 19XR-84V4F30MHT5A
+            r'(19XR)[-\s]?([A-Z0-9]+)',
+            # 良机模式: LCP-4059S-L-C1-JC
+            r'(LCP)[-\s]?([A-Z0-9-]+)',
+            # SRN 模式: SRN-900LG-1
+            r'(SRN)[-\s]?([A-Z0-9-]+)',
+            # 通用模式: 字母-数字-字母
+            r'([A-Z]{2,})[-\s]?([A-Z0-9-]+)',
+        ]
+        for pattern in MODEL_PATTERNS:
+            match = re.search(pattern, filename, re.IGNORECASE)
+            if match:
+                groups = match.groups()
+                normalized = "-".join(groups).upper()
+                return normalized, raw
+        # fallback: 清理空格和特殊字符
+        cleaned = re.sub(r'[^\w\-]', '', filename)
+        return None, raw
+
+    @staticmethod
+    def _extract_file_type_tag(filename: str) -> Optional[str]:
+        """从文件名提取文件类型标签"""
+        TAGS = ["参数表", "样本", "Product Report", "外形图", "基础图", "报价", "IPLV", "选型报告"]
+        for tag in TAGS:
+            if tag in filename:
+                return tag
+        return None
 
     @staticmethod
     def add_document_type(

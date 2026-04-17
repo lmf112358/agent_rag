@@ -174,9 +174,15 @@ class QdrantVectorStore(VectorStore):
 
     def _create_collection_if_not_exists(self, vector_dim: int, distance: str):
         """创建集合（如果不存在）"""
+        collection_exists = False
         try:
             self.client.get_collection(self.collection_name)
-        except (UnexpectedResponse, Exception):
+            collection_exists = True
+        except Exception:
+            # 集合不存在，需要创建
+            pass
+
+        if not collection_exists:
             # Distance 枚举使用全大写 (COSINE/EUCLID/DOT/MANHATTAN)
             if isinstance(distance, str):
                 dist_upper = distance.upper()

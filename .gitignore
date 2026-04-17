@@ -71,6 +71,9 @@ ehthumbs.db
 *.tar.xz
 
 # 大文件
+data/
+doc/
+docs/
 *.pdf
 *.docx
 *.xlsx
