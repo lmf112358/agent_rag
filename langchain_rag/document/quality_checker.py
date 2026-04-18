@@ -150,7 +150,7 @@ class QualityChecker:
         """Office 文件检查"""
         try:
             ext = Path(file_path).suffix.lower()
-            if ext in [".docx", ".doc"]:
+            if ext == ".docx":
                 from docx import Document as DocxDocument
                 doc = DocxDocument(file_path)
                 # 简单检查：至少有一段
@@ -160,6 +160,10 @@ class QualityChecker:
                         quality_score=0.3,
                         issues=["No text found in document"],
                     )
+            elif ext == ".doc":
+                # .doc 旧版格式，尝试读取
+                # 实际读取在 loader 中进行，这里只做基础检查
+                pass
             return QualityReport(
                 quality_tag="CLEAN",
                 quality_score=1.0,

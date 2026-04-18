@@ -101,6 +101,21 @@ class RAGConfig(BaseSettings):
     min_relevance_score: float = 0.75
 
 
+class MinerUConfig(BaseSettings):
+    """MinerU 文档解析配置"""
+    model_config = SettingsConfigDict(env_prefix="MINERU_")
+
+    enabled: bool = False
+    api_base: str = "http://localhost:8008"
+    api_key: str = ""
+    timeout: int = 300
+    max_file_size_mb: int = 50
+    output_format: Literal["markdown", "json"] = "markdown"
+    enable_ocr: bool = False
+    enable_formula: bool = True
+    enable_table: bool = True
+
+
 class AgentConfig(BaseSettings):
     """Agent配置"""
     model_config = SettingsConfigDict(env_prefix="AGENT_")
@@ -130,6 +145,7 @@ class Config(BaseSettings):
     vectorstore: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     agent: AgentConfig = Field(default_factory=AgentConfig)
+    mineru: MinerUConfig = Field(default_factory=MinerUConfig)
 
 
 config = Config()

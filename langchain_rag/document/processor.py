@@ -5,9 +5,12 @@
 
 import os
 import re
+import logging
 from typing import List, Optional, Dict, Any, Callable,Tuple
 from pathlib import Path
 from langchain_core.documents import Document
+
+logger = logging.getLogger(__name__)
 
 
 class BaseLoader:
@@ -93,6 +96,89 @@ class UnstructuredWordDocumentLoader(BaseLoader):
                 full_text.append(para.text)
 
         text = "\n".join(full_text)
+        if not text.strip():
+            return []
+
+        return [Document(page_content=text, metadata={"source": self.file_path})]
+
+
+class DocLoader(BaseLoader):
+    """旧版 DOC 加载器（支持多种方式）"""
+
+    def __init__(self, file_path: str, *args, **kwargs):
+        self.file_path = file_path
+
+    def load(self) -> List[Document]:
+        """尝试多种方式读取 .doc 文件"""
+        text = None
+        methods_tried = []
+
+        # 方法 1: 尝试使用 textract（如果已安装）
+        try:
+            import textract
+            methods_tried.append("textract")
+            text = textract.process(self.file_path).decode("utf-8", errors="ignore")
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"textract failed: {e}")
+
+        # 方法 2: 尝试使用 antiword（命令行工具）
+        if text is None:
+            try:
+                import subprocess
+                methods_tried.append("antiword")
+                result = subprocess.run(
+                    ["antiword", self.file_path],
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if result.returncode == 0:
+                    text = result.stdout
+            except (ImportError, FileNotFoundError, subprocess.TimeoutExpired):
+                pass
+            except Exception as e:
+                logger.debug(f"antiword failed: {e}")
+
+        # 方法 3: Windows 平台尝试使用 pywin32
+        if text is None:
+            try:
+                import sys
+                if sys.platform == "win32":
+                    methods_tried.append("pywin32")
+                    import win32com.client
+                    word = win32com.client.Dispatch("Word.Application")
+                    word.Visible = False
+                    try:
+                        doc = word.Documents.Open(os.path.abspath(self.file_path))
+                        text = doc.Content.Text
+                        doc.Close()
+                    finally:
+                        word.Quit()
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"pywin32 failed: {e}")
+
+        # 方法 4: 尝试使用 docx2txt
+        if text is None:
+            try:
+                import docx2txt
+                methods_tried.append("docx2txt")
+                text = docx2txt.process(self.file_path)
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"docx2txt failed: {e}")
+
+        if text is None:
+            raise ImportError(
+                f"Failed to read .doc file. Tried methods: {methods_tried}. "
+                f"Please install one of: textract, antiword, pywin32 (Windows), docx2txt, "
+                f"or convert the file to .docx format manually."
+            )
+
         if not text.strip():
             return []
 
@@ -240,7 +326,7 @@ class DocumentProcessor:
     LOADER_MAPPING: Dict[str, type] = {
         ".pdf": PyPDFLoader,
         ".docx": UnstructuredWordDocumentLoader,
-        ".doc": UnstructuredWordDocumentLoader,
+        ".doc": DocLoader,
         ".xlsx": UnstructuredExcelLoader,
         ".xls": UnstructuredExcelLoader,
         ".pptx": UnstructuredPowerPointLoader,
@@ -254,9 +340,27 @@ class DocumentProcessor:
         self,
         chunk_config: Optional[ChunkConfig] = None,
         extract_images: bool = False,
+        use_mineru: bool = True,
     ):
         self.chunk_config = chunk_config or ChunkConfig()
         self.extract_images = extract_images
+        self.use_mineru = use_mineru
+        self.mineru_client = None
+        if self.use_mineru:
+            self._init_mineru()
+
+    def _init_mineru(self):
+        """初始化 MinerU 客户端"""
+        try:
+            from langchain_rag.document.mineru_client import create_mineru_client_from_config
+            self.mineru_client = create_mineru_client_from_config()
+            if self.mineru_client:
+                logger.info("MinerU client initialized")
+            else:
+                logger.info("MinerU not enabled in config, using PyPDF for PDF")
+        except Exception as e:
+            logger.warning(f"Failed to initialize MinerU client: {e}, using PyPDF for PDF")
+            self.mineru_client = None
 
     def get_loader(self, file_path: str) -> BaseLoader:
         """根据文件扩展名获取合适的加载器"""
@@ -270,8 +374,10 @@ class DocumentProcessor:
 
         loader_class = self.LOADER_MAPPING[ext]
 
-        if ext in [".docx", ".doc"]:
+        if ext == ".docx":
             return loader_class(file_path, mode="elements")
+        elif ext == ".doc":
+            return loader_class(file_path)
         elif ext == ".pdf":
             return loader_class(file_path)
         elif ext in [".xlsx", ".xls"]:
@@ -282,10 +388,24 @@ class DocumentProcessor:
             return loader_class(file_path)
 
     def load_document(self, file_path: str, metadata: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """加载单个文档"""
+        """加载单个文档（PDF 优先用 MinerU，失败回退 PyPDF）"""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"File not found: {file_path}")
 
+        path = Path(file_path)
+        ext = path.suffix.lower()
+
+        # PDF 优先尝试 MinerU
+        if ext == ".pdf" and self.use_mineru and self.mineru_client:
+            try:
+                docs = self._try_load_with_mineru(file_path, metadata)
+                if docs:
+                    logger.info(f"Loaded PDF with MinerU: {path.name}")
+                    return docs
+            except Exception as e:
+                logger.warning(f"MinerU failed for {path.name}: {e}, falling back to PyPDF")
+
+        # 回退到默认加载器
         loader = self.get_loader(file_path)
         docs = loader.load()
 
@@ -294,6 +414,27 @@ class DocumentProcessor:
                 doc.metadata.update(metadata)
 
         return docs
+
+    def _try_load_with_mineru(self, file_path: str, metadata: Optional[Dict[str, Any]] = None) -> Optional[List[Document]]:
+        """尝试用 MinerU 加载 PDF"""
+        try:
+            from langchain_rag.document.mineru_loader import MinerULoader
+        except ImportError:
+            logger.debug("MinerULoader not available")
+            return None
+
+        try:
+            loader = MinerULoader(file_path, client=self.mineru_client)
+            docs = loader.load()
+
+            if docs and metadata:
+                for doc in docs:
+                    doc.metadata.update(metadata)
+
+            return docs
+        except Exception as e:
+            logger.debug(f"MinerULoader failed: {e}")
+            return None
 
     def load_documents(
         self,

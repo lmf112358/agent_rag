@@ -28,6 +28,17 @@ from langchain_rag.document.quality_checker import QualityChecker
 from langchain_rag.vectorstore.qdrant import QdrantVectorStore, DashScopeEmbeddings
 from langchain_rag.config.settings import config
 
+# MinerU 配置检查
+MINERU_AVAILABLE = False
+MINERU_ENABLED = config.mineru.enabled
+if MINERU_ENABLED:
+    try:
+        from langchain_rag.document.mineru_client import create_mineru_client_from_config
+        MINERU_AVAILABLE = True
+    except ImportError:
+        logger.warning("MinerU module not found, will use PyPDF for PDF parsing")
+        MINERU_ENABLED = False
+
 
 def find_all_documents(
     root_dir: str,
@@ -125,11 +136,22 @@ def load_and_process_documents_recursive(
     chunk_size = chunk_size or config.rag.chunk_size
     chunk_overlap = chunk_overlap or config.rag.chunk_overlap
 
+    # 显示 MinerU 状态
+    if MINERU_ENABLED:
+        msg = f"MinerU 已启用: {config.mineru.api_base}"
+        print(f"[info] {msg}")
+        logger.info(msg)
+    else:
+        msg = "MinerU 未启用，使用 PyPDF 解析 PDF"
+        print(f"[info] {msg}")
+        logger.info(msg)
+
     processor = DocumentProcessor(
         chunk_config=ChunkConfig(
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-        )
+        ),
+        use_mineru=MINERU_ENABLED,
     )
 
     doc_files = find_all_documents(root_dir)
