@@ -6,14 +6,15 @@
 2. [系统架构](#系统架构)
 3. [技术栈详解](#技术栈详解)
 4. [快速开始](#快速开始)
-5. [MinerU 文档解析集成](#mineru-文档解析集成)
-6. [配置详解](#配置详解)
-7. [API 文档](#api-文档)
-8. [知识库管理](#知识库管理)
-9. [测试与验证](#测试与验证)
-10. [部署指南](#部署指南)
-11. [故障排查](#故障排查)
-12. [最佳实践](#最佳实践)
+5. [标书审核Agent](#标书审核agent)
+6. [MinerU 文档解析集成](#mineru-文档解析集成)
+7. [配置详解](#配置详解)
+8. [API 文档](#api-文档)
+9. [知识库管理](#知识库管理)
+10. [测试与验证](#测试与验证)
+11. [部署指南](#部署指南)
+12. [故障排查](#故障排查)
+13. [最佳实践](#最佳实践)
 
 ---
 
@@ -38,6 +39,7 @@ Agentic RAG 是**广东迪奥技术有限公司**为国家级专精特新"小巨
 | **知识问答** | 基于 RAG 技术的智能问答系统，支持专业术语理解 | ✅ |
 | **报价复核** | 硬逻辑校验防止 LLM 幻觉，确保报价准确性 | ✅ |
 | **合规审核** | 自动检查投标方案的技术合规性 | ✅ |
+| **标书审核Agent** | 5阶段Pipeline实现自动化标书合规审核 | ✅ |
 | **MinerU 文档解析** | 支持复杂版式 PDF（合并单元格、跨页表格、公式）解析 | ✅ Phase 2 |
 | **长短期记忆** | 支持多轮对话，提供连续上下文理解 | ✅ |
 | **智能路由** | 自动识别用户意图，调用相应工具 | ✅ |
@@ -358,6 +360,188 @@ start.bat
 
 ---
 
+## 标书审核Agent
+
+### 什么是标书审核Agent
+
+标书审核Agent是一个5阶段Pipeline的自动化标书合规审核系统，专门针对PCB厂务高效机房项目投标场景，将原本需要3-5天的人工审核缩短到分钟级。
+
+**解决的核心痛点：**
+- **审核效率低**：单个智慧低碳项目招标书平均200页，技术合规审核耗时3-5天
+- **人为疏漏风险**：人工审核容易遗漏关键条款，产生废标风险
+- **知识复用难**：资深审核专家经验难以沉淀和复用
+- **风险识别难**：废标条款、偏离项、低置信度内容难以快速识别
+
+**核心功能：**
+| 功能模块 | 说明 | 状态 |
+|---------|------|------|
+| **Stage 1: 文档解析层** | 调用MinerU解析PDF为Markdown | ✅ |
+| **Stage 2: 条款对齐层** | 识别章节、提取招标条款、对齐投标响应 | ✅ |
+| **Stage 3: 核对引擎层** | Hard/Soft/KB三层核对机制 | ✅ |
+| **Stage 4: 评分汇总层** | 多维度评分、风险标记、废标识别 | ✅ |
+| **Stage 5: 人工复核层** | 自动分流、报告生成、决策建议 | ✅ |
+
+### 5阶段Pipeline架构
+
+```
+招标书PDF + 投标书PDF
+    ↓ Stage 1: 文档解析层（MinerU + QualityChecker）
+招标书Markdown + 投标书Markdown
+    ↓ Stage 2: 条款对齐层（规则+LLM章节识别）
+结构化Checklist + 投标响应JSON
+    ↓ Stage 3: 核对引擎层（三层核对）
+    ├─ Hard Check: Python数值比较（COP≥6.0等硬规则）
+    ├─ Soft Check: LLM语义评估（技术先进性等定性指标）
+    └─ KB Verify: Qdrant查询验证厂家参数真实性
+核对结果列表
+    ↓ Stage 4: 评分汇总层
+评分卡 + 风险标记 + 废标风险提示
+    ↓ Stage 5: 人工复核层
+    ├─ 高置信+符合 → 自动通过
+    ├─ 中置信/部分符合 → 人工确认界面
+    └─ 低置信/不符合 → 强制人工审核
+审核报告 + 分流决策
+```
+
+### 快速开始
+
+#### 方式1：运行演示脚本
+
+```bash
+# 模拟模式（无需PDF文件，查看Pipeline流程）
+python examples/tender_compliance_demo.py
+
+# 真实模式（使用真实PDF文件运行）
+python examples/tender_compliance_demo.py --with-files
+```
+
+#### 方式2：编程方式使用
+
+```python
+from langchain_rag.tender_compliance import TenderCompliancePipeline
+
+# 初始化Pipeline（自动从.env读取配置）
+pipeline = TenderCompliancePipeline()
+
+# 运行完整审核流程
+report = pipeline.run(
+    tender_pdf="data/samples/tender/tender_sample.pdf",
+    bid_pdf="data/samples/bid/bid_sample.pdf",
+    project_name="珠海某PCB厂高效机房项目",
+    project_type="高效机房",
+    company_name="投标公司名称"
+)
+
+# 查看审核结果
+print(f"总得分: {report.scoring_card.total_score}")
+print(f"废标风险: {'有' if report.scoring_card.disqualification_risk else '无'}")
+print(f"报告ID: {report.report_id}")
+```
+
+### 配置说明
+
+在 `langchain_rag/.env` 中配置：
+
+```env
+# ==========================================
+# MinerU 文档解析配置（标书审核必需）
+# ==========================================
+MINERU_ENABLED=true
+MINERU_API_BASE=https://mineru.net
+MINERU_API_KEY=your_mineru_api_key_here
+MINERU_TIMEOUT=300
+MINERU_OUTPUT_FORMAT=markdown
+MINERU_ENABLE_OCR=false
+MINERU_ENABLE_FORMULA=true
+MINERU_ENABLE_TABLE=true
+
+# 云端API扩展配置
+MINERU_MODEL_VERSION=vlm
+MINERU_POLL_INTERVAL=5
+MINERU_MAX_POLLS=60
+
+# ==========================================
+# LLM 配置（标书审核必需）
+# ==========================================
+DASHSCOPE_API_KEY=your_dashscope_key_here
+LLM_MODEL_NAME=qwen-max
+
+# ==========================================
+# Qdrant 配置（KB Verify可选）
+# ==========================================
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+QDRANT_API_KEY=
+```
+
+### 三层核对机制详解
+
+#### Hard Check（硬规则核对）
+- **用途**：可量化的技术指标（如COP≥6.0、IPLV≥9.0等）
+- **实现**：Python数值比较，无LLM幻觉
+- **输出**：符合/不符合、偏离类型、目标值/投标值
+
+#### Soft Check（软规则核对）
+- **用途**：定性指标（如技术先进性、方案完整性等）
+- **实现**：LLM语义评估，带置信度打分
+- **输出**：响应质量、建议分数、推理依据、证据引用
+
+#### KB Verify（知识库验证）
+- **用途**：验证厂家参数真实性（如设备型号、性能参数等）
+- **实现**：Qdrant向量库检索，基于历史项目经验
+- **输出**：验证结果、置信度、参考来源
+
+### 评分维度
+
+| 维度 | 权重 | 说明 |
+|------|------|------|
+| 技术响应性 | 40% | 招标条款响应完整性、准确性 |
+| 技术先进性 | 20% | 技术方案的先进性、创新性 |
+| 实施能力 | 20% | 项目经验、团队配置、实施计划 |
+| 服务保障 | 20% | 售后服务、质保承诺、培训方案 |
+
+### 风险等级
+
+| 等级 | 说明 | 分流建议 |
+|------|------|----------|
+| 低风险 | 高置信符合，无废标风险 | 自动通过 |
+| 中风险 | 部分符合，需要人工确认 | 人工确认 |
+| 高风险 | 低置信或不符合 | 强制人工审核 |
+| 极高风险 | 触发废标条款 | 废标预警 |
+
+### 项目文件结构
+
+```
+langchain_rag/tender_compliance/
+├── __init__.py              # 模块初始化
+├── models.py                # Pydantic数据模型
+├── config.py                # 章节识别规则、评分配置
+├── pipeline.py              # 主Pipeline类
+├── stage1_parser.py         # Stage 1: 文档解析层
+├── stage2_aligner.py        # Stage 2: 条款对齐层
+├── stage3_compliance.py     # Stage 3: 核对引擎层
+├── stage4_scoring.py        # Stage 4: 评分汇总层
+└── stage5_review.py         # Stage 5: 人工复核层
+
+examples/
+└── tender_compliance_demo.py # 完整演示脚本
+```
+
+### 测试数据
+
+测试PDF文件位于：
+- `data/samples/tender/tender_sample.pdf` - 招标书示例
+- `data/samples/bid/bid_sample.pdf` - 投标书示例
+
+### 更多帮助
+
+如需更多帮助，请查看：
+- 详细使用指南: `TENDER_COMPLIANCE_USAGE.md`
+- 演示脚本: `examples/tender_compliance_demo.py`
+- 数据模型: `langchain_rag/tender_compliance/models.py`
+
+---
+
 ## MinerU 文档解析集成
 
 ### 什么是 MinerU
@@ -373,11 +557,26 @@ MinerU 是阿里云开源的专业文档解析工具，专门针对复杂版式 
 
 ### MinerU 部署方式
 
-#### Phase 2：API 接口调用（当前）
+#### 方式1：使用官方云端API（推荐）
 
-当前阶段使用 HTTP REST API 调用 MinerU 服务，你可以：
-1. 部署自己的 MinerU API 服务
-2. 使用第三方 MinerU 云服务
+使用MinerU官方云端API，无需本地部署：
+- 官网：https://mineru.net
+- API文档：https://mineru.net/apiManage/docs
+
+```env
+MINERU_ENABLED=true
+MINERU_API_BASE=https://mineru.net
+MINERU_API_KEY=your_official_api_key_here
+```
+
+#### 方式2：本地API服务
+
+部署自己的MinerU API服务：
+```env
+MINERU_ENABLED=true
+MINERU_API_BASE=http://localhost:8008
+MINERU_API_KEY=
+```
 
 #### 后续 Phase 3：Docker 本地部署
 
@@ -388,37 +587,39 @@ MinerU 是阿里云开源的专业文档解析工具，专门针对复杂版式 
 在 `langchain_rag/.env` 中配置：
 
 ```env
-# 启用 MinerU
+# ==========================================
+# 基础配置
+# ==========================================
 MINERU_ENABLED=true
-
-# MinerU API 地址
-MINERU_API_BASE=http://localhost:8008
-
-# API Key（如服务需要）
-MINERU_API_KEY=your-api-key-if-needed
-
-# 超时时间（秒），大文件需要更长时间
+MINERU_API_BASE=https://mineru.net
+MINERU_API_KEY=your-api-key-here
 MINERU_TIMEOUT=300
-
-# 输出格式：markdown（推荐）或 json
 MINERU_OUTPUT_FORMAT=markdown
 
-# 是否启用 OCR（仅扫描件需要，会增加耗时）
+# ==========================================
+# 功能开关
+# ==========================================
 MINERU_ENABLE_OCR=false
-
-# 是否启用公式识别
 MINERU_ENABLE_FORMULA=true
-
-# 是否启用表格识别
 MINERU_ENABLE_TABLE=true
+
+# ==========================================
+# 云端API扩展配置
+# ==========================================
+MINERU_MODEL_VERSION=vlm          # pipeline / vlm / MinerU-HTML
+MINERU_POLL_INTERVAL=5            # 轮询间隔（秒）
+MINERU_MAX_POLLS=60              # 最大轮询次数
 ```
 
 ### MinerU API 协议
 
-MinerUClient 使用的 HTTP API 协议：
+MinerUClient 支持两种 API 模式：
 
-#### 健康检查
+#### 模式1：本地API（/parse）
 
+适用于本地部署的MinerU服务：
+
+**健康检查：**
 ```
 GET /health
 ```
@@ -431,8 +632,7 @@ GET /health
 }
 ```
 
-#### 文档解析
-
+**文档解析：**
 ```
 POST /parse
 Content-Type: multipart/form-data
@@ -454,6 +654,92 @@ enable_table: true | false
   "parse_time_seconds": 5.2
 }
 ```
+
+---
+
+#### 模式2：官方云端API（推荐）
+
+适用于MinerU官方云端服务（https://mineru.net）：
+
+**认证方式：**
+```
+Authorization: Bearer {your_api_key}
+```
+
+**流程：**
+
+1. **申请上传链接**
+```
+POST /api/v4/file-urls/batch
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+  "files": [{"name": "demo.pdf", "is_ocr": false}],
+  "model_version": "vlm",
+  "enable_formula": true,
+  "enable_table": true
+}
+```
+
+**响应：**
+```json
+{
+  "code": 0,
+  "data": {
+    "batch_id": "xxx-xxx-xxx",
+    "file_urls": ["https://mineru.oss-cn-shanghai.aliyuncs.com/..."]
+  },
+  "msg": "ok"
+}
+```
+
+2. **PUT上传文件**
+```
+PUT {file_urls[0]}
+Content-Type: (不设置)
+Body: [PDF文件二进制内容]
+```
+
+3. **轮询批量结果**
+```
+GET /api/v4/extract-results/batch/{batch_id}
+Authorization: Bearer {token}
+```
+
+**响应（处理中）：**
+```json
+{
+  "code": 0,
+  "data": {
+    "state": "running",
+    "extract_progress": {
+      "extracted_pages": 1,
+      "total_pages": 10,
+      "start_time": "2025-01-20 11:43:20"
+    }
+  }
+}
+```
+
+**响应（完成）：**
+```json
+{
+  "code": 0,
+  "data": {
+    "state": "done",
+    "full_zip_url": "https://cdn-mineru.openxlab.org.cn/.../result.zip"
+  }
+}
+```
+
+4. **下载ZIP并提取full.md**
+
+ZIP文件包含：
+- `full.md` - Markdown格式的完整解析结果
+- `layout.json` - 中间处理结果
+- `*_model.json` - 模型推理结果
+- `*_content_list.json` - 内容列表
 
 ### 回退机制
 

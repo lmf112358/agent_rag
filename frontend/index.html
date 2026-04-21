@@ -3,172 +3,240 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agentic RAG 智能助手</title>
+    <title>Agentic RAG</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#3b82f6',
-                        secondary: '#6366f1',
-                        accent: '#10b981',
-                        neutral: '#6b7280',
-                        'neutral-dark': '#374151',
-                    },
-                    fontFamily: {
-                        sans: ['Inter', 'system-ui', 'sans-serif'],
-                    },
-                },
-            }
-        }
-    </script>
-    <style type="text/tailwindcss">
-        @layer utilities {
-            .content-auto {
-                content-visibility: auto;
-            }
-            .scrollbar-hide {
-                -ms-overflow-style: none;
-                scrollbar-width: none;
-            }
-            .scrollbar-hide::-webkit-scrollbar {
-                display: none;
-            }
-        }
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; }
+        .markdown-body h1 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 0.5rem; }
+        .markdown-body h2 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+        .markdown-body h3 { font-size: 1.1rem; font-weight: 600; margin: 0.75rem 0 0.5rem; }
+        .markdown-body p { margin-bottom: 0.75rem; line-height: 1.6; }
+        .markdown-body ul { list-style-type: disc; padding-left: 1.5rem; margin-bottom: 0.75rem; }
+        .markdown-body li { margin-bottom: 0.25rem; }
+        .markdown-body strong { font-weight: 600; }
+        .drop-zone { border: 2px dashed #d1d5db; transition: all 0.3s; }
+        .drop-zone.drag-over { border-color: #3b82f6; background: #eff6ff; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
-        <header class="mb-8">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-primary to-secondary rounded-lg flex items-center justify-center">
-                        <i data-lucide="brain"></i>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Agentic RAG 智能助手</h1>
-                        <p class="text-sm text-gray-500">基于LangChain的工业知识系统</p>
-                    </div>
+    <div class="container mx-auto px-4 py-6 max-w-5xl">
+        <header class="mb-4">
+            <div class="flex items-center space-x-3 mb-4">
+                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                    <i data-lucide="brain" class="text-white"></i>
                 </div>
-                <div class="flex items-center space-x-4">
-                    <button id="newSessionBtn" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-                        <i data-lucide="plus"></i>
-                        <span class="ml-2">新会话</span>
-                    </button>
-                    <div class="relative">
-                        <button id="sessionDropdownBtn" class="flex items-center space-x-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors">
-                            <i data-lucide="list"></i>
-                            <span id="currentSessionId" class="text-sm">会话 #1</span>
-                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
-                        </button>
-                        <div id="sessionDropdown" class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 hidden">
-                            <div class="p-2">
-                                <div class="text-sm font-medium text-gray-700 mb-2">最近会话</div>
-                                <div id="sessionList" class="space-y-1">
-                                    <!-- 会话列表将通过JS动态添加 -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">Agentic RAG</h1>
+                    <p class="text-sm text-gray-500">Industrial Knowledge System</p>
                 </div>
             </div>
+            <nav class="border-b border-gray-200">
+                <div class="flex space-x-8">
+                    <button id="tabChat" class="pb-3 px-1 font-medium text-gray-600 hover:text-gray-900 tab-active" onclick="switchTab('chat')">
+                        <i data-lucide="message-square" class="w-4 h-4 inline mr-2"></i>Chat
+                    </button>
+                    <button id="tabTender" class="pb-3 px-1 font-medium text-gray-600 hover:text-gray-900" onclick="switchTab('tender')">
+                        <i data-lucide="file-text" class="w-4 h-4 inline mr-2"></i>Tender Audit
+                    </button>
+                </div>
+            </nav>
         </header>
 
-        <main class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- 聊天区域 -->
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-xl shadow-md overflow-hidden">
-                    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-                        <h2 class="font-semibold text-gray-900">智能对话</h2>
-                        <div class="flex items-center space-x-2">
-                            <button id="clearChatBtn" class="text-gray-500 hover:text-gray-700">
+        <main>
+            <div id="chatPanel" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+                        <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+                            <h2 class="font-semibold text-gray-900">Chat</h2>
+                            <button onclick="clearChat()" class="text-gray-500 hover:text-gray-700 p-2">
                                 <i data-lucide="trash-2"></i>
                             </button>
-                            <button id="saveSessionBtn" class="text-gray-500 hover:text-gray-700">
-                                <i data-lucide="save"></i>
-                            </button>
                         </div>
-                    </div>
-                    <div id="chatContainer" class="h-[500px] overflow-y-auto p-4 space-y-4 scrollbar-hide">
-                        <!-- 消息将通过JS动态添加 -->
-                        <div class="flex items-start space-x-3">
-                            <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                <i data-lucide="robot" class="w-5 h-5 text-gray-600"></i>
-                            </div>
-                            <div class="flex-1">
-                                <div class="bg-gray-100 rounded-lg p-3">
-                                    <p class="text-gray-700">你好！我是工业知识智能助手。请问有什么可以帮助你的？</p>
+                        <div id="chatContainer" class="h-[500px] overflow-y-auto p-4 space-y-4 scrollbar-hide">
+                            <div class="flex items-start space-x-3">
+                                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <i data-lucide="robot" class="w-5 h-5 text-gray-600"></i>
                                 </div>
-                                <div class="text-xs text-gray-500 mt-1">
-                                    智能助手 • 刚刚
+                                <div class="flex-1">
+                                    <div class="bg-gray-100 rounded-lg p-3">
+                                        <p class="text-gray-700">Hello! How can I help you?</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
+                        <div class="p-4 border-t border-gray-200">
+                            <form id="chatForm" class="flex space-x-2">
+                                <input type="text" id="chatInput" placeholder="Type your question..."
+                                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                <button type="submit" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                                    <i data-lucide="send"></i>
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                    <div class="p-4 border-t border-gray-200">
-                        <form id="chatForm" class="flex space-x-2">
-                            <input 
-                                type="text" 
-                                id="chatInput" 
-                                placeholder="输入你的问题..." 
-                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50"
-                            >
-                            <button type="submit" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors">
-                                <i data-lucide="send"></i>
-                            </button>
-                        </form>
+                </div>
+                <div class="lg:col-span-1">
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl shadow-md p-4">
+                            <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                                <i data-lucide="wrench" class="w-5 h-5 mr-2"></i>Tools
+                            </h3>
+                            <div id="toolList" class="space-y-2"></div>
+                        </div>
+                        <div class="bg-white rounded-xl shadow-md p-4">
+                            <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
+                                <i data-lucide="activity" class="w-5 h-5 mr-2"></i>Status
+                            </h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">API:</span>
+                                    <span class="text-green-600">OK</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Messages:</span>
+                                    <span id="messageCount">1</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- 右侧面板 -->
-            <div class="lg:col-span-1">
-                <div class="space-y-6">
-                    <!-- 工具列表 -->
-                    <div class="bg-white rounded-xl shadow-md p-4">
-                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
-                            <i data-lucide="wrench" class="w-5 h-5 mr-2"></i>
-                            可用工具
-                        </h3>
-                        <div id="toolList" class="space-y-2">
-                            <!-- 工具列表将通过JS动态添加 -->
+            <div id="tenderPanel" class="hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="space-y-6">
+                        <div class="bg-white rounded-xl shadow-md p-6">
+                            <h2 class="font-semibold text-gray-900 mb-4 flex items-center">
+                                <i data-lucide="plus-circle" class="w-5 h-5 mr-2 text-blue-500"></i>New Audit Task
+                            </h2>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Name</label>
+                                    <input type="text" id="projectName" placeholder="Enter project name"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
+                                    <select id="projectType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                        <option value="高效机房">High Efficiency Room</option>
+                                        <option value="智能建筑">Smart Building</option>
+                                        <option value="数据中心">Data Center</option>
+                                        <option value="其他">Other</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Company (Optional)</label>
+                                    <input type="text" id="companyName" placeholder="Enter company name"
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50">
+                                </div>
+                                <button id="createTaskBtn" onclick="createTenderTask()"
+                                    class="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
+                                    Create Task
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="uploadSection" class="hidden bg-white rounded-xl shadow-md p-6">
+                            <h2 class="font-semibold text-gray-900 mb-4 flex items-center">
+                                <i data-lucide="upload" class="w-5 h-5 mr-2 text-blue-500"></i>Upload Files
+                            </h2>
+                            <p class="text-sm text-gray-500 mb-4">Task ID: <span id="currentTaskId" class="font-mono"></span></p>
+                            <div class="space-y-4">
+                                <div id="tenderDropZone" class="drop-zone rounded-lg p-6 text-center cursor-pointer"
+                                    ondrop="handleDrop(event, 'tender')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('tenderFileInput').click()">
+                                    <i data-lucide="file-text" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                                    <p class="text-gray-600">Tender Document (PDF)</p>
+                                    <p class="text-xs text-gray-400 mt-1">Click or drag to upload</p>
+                                    <input type="file" id="tenderFileInput" class="hidden" accept=".pdf" onchange="handleFileSelect(event, 'tender')">
+                                    <p id="tenderFileName" class="text-sm text-blue-500 mt-2 hidden"></p>
+                                </div>
+                                <div id="bidDropZone" class="drop-zone rounded-lg p-6 text-center cursor-pointer"
+                                    ondrop="handleDrop(event, 'bid')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('bidFileInput').click()">
+                                    <i data-lucide="file-text" class="w-10 h-10 mx-auto text-gray-400 mb-2"></i>
+                                    <p class="text-gray-600">Bid Document (PDF)</p>
+                                    <p class="text-xs text-gray-400 mt-1">Click or drag to upload</p>
+                                    <input type="file" id="bidFileInput" class="hidden" accept=".pdf" onchange="handleFileSelect(event, 'bid')">
+                                    <p id="bidFileName" class="text-sm text-blue-500 mt-2 hidden"></p>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <input type="checkbox" id="useMockCheck" checked class="rounded">
+                                    <label for="useMockCheck" class="text-sm text-gray-600">Use Mock Mode (Fast Test)</label>
+                                </div>
+                                <button id="startAuditBtn" onclick="startAudit()" disabled
+                                    class="w-full py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed">
+                                    Start Audit
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="progressSection" class="hidden bg-white rounded-xl shadow-md p-6">
+                            <h2 class="font-semibold text-gray-900 mb-4 flex items-center">
+                                <i data-lucide="loader" class="w-5 h-5 mr-2 text-blue-500 animate-spin"></i>Audit Progress
+                            </h2>
+                            <div class="space-y-3">
+                                <div id="stage1" class="flex items-center space-x-3 text-gray-400">
+                                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm">1</div>
+                                    <span>Parse Document</span>
+                                </div>
+                                <div id="stage2" class="flex items-center space-x-3 text-gray-400">
+                                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm">2</div>
+                                    <span>Compliance Check</span>
+                                </div>
+                                <div id="stage3" class="flex items-center space-x-3 text-gray-400">
+                                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm">3</div>
+                                    <span>Technical Evaluation</span>
+                                </div>
+                                <div id="stage4" class="flex items-center space-x-3 text-gray-400">
+                                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm">4</div>
+                                    <span>Knowledge Base Verify</span>
+                                </div>
+                                <div id="stage5" class="flex items-center space-x-3 text-gray-400">
+                                    <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-sm">5</div>
+                                    <span>Risk Assessment</span>
+                                </div>
+                            </div>
+                            <p id="statusMessage" class="mt-4 text-sm text-gray-500"></p>
                         </div>
                     </div>
 
-                    <!-- 会话记忆 -->
-                    <div class="bg-white rounded-xl shadow-md p-4">
-                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
-                            <i data-lucide="clock" class="w-5 h-5 mr-2"></i>
-                            会话记忆
-                        </h3>
-                        <div id="memoryContainer" class="space-y-2 max-h-60 overflow-y-auto scrollbar-hide">
-                            <div class="text-sm text-gray-500">
-                                会话开始
+                    <div>
+                        <div id="resultSection" class="hidden bg-white rounded-xl shadow-md p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h2 class="font-semibold text-gray-900 flex items-center">
+                                    <i data-lucide="check-circle" class="w-5 h-5 mr-2 text-green-500"></i>Audit Result
+                                </h2>
+                                <div class="flex space-x-2">
+                                    <button onclick="downloadReport('json')" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                                        <i data-lucide="download" class="w-4 h-4 inline mr-1"></i>JSON
+                                    </button>
+                                    <button onclick="downloadReport('md')" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                                        <i data-lucide="download" class="w-4 h-4 inline mr-1"></i>MD
+                                    </button>
+                                    <button onclick="downloadReport('html')" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">
+                                        <i data-lucide="download" class="w-4 h-4 inline mr-1"></i>HTML
+                                    </button>
+                                </div>
                             </div>
+                            <div id="scoreCard" class="mb-4 p-4 bg-gray-50 rounded-lg">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-600">Compliance Score</span>
+                                    <span id="scoreValue" class="text-2xl font-bold text-blue-500">0</span>
+                                </div>
+                                <div class="flex items-center justify-between mt-2">
+                                    <span class="text-gray-600">Risk Level</span>
+                                    <span id="riskLevel" class="px-2 py-1 rounded text-sm font-medium">-</span>
+                                </div>
+                            </div>
+                            <div id="reportContent" class="markdown-body h-[400px] overflow-y-auto scrollbar-hide text-gray-700"></div>
                         </div>
-                    </div>
-
-                    <!-- 系统状态 -->
-                    <div class="bg-white rounded-xl shadow-md p-4">
-                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center">
-                            <i data-lucide="activity" class="w-5 h-5 mr-2"></i>
-                            系统状态
-                        </h3>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">API状态:</span>
-                                <span id="apiStatus" class="text-green-600">✓ 正常</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">会话ID:</span>
-                                <span id="statusSessionId" class="font-mono">#1</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-600">消息数:</span>
-                                <span id="messageCount">1</span>
+                        <div id="placeholderSection" class="bg-white rounded-xl shadow-md p-6">
+                            <div class="text-center text-gray-400 py-12">
+                                <i data-lucide="file-search" class="w-12 h-12 mx-auto mb-4"></i>
+                                <p>Create task and upload files<br>results will appear here</p>
                             </div>
                         </div>
                     </div>
@@ -178,350 +246,327 @@
     </div>
 
     <script>
-        // 初始化Lucide图标
         lucide.createIcons();
+        const API_BASE = 'http://localhost:8000/api';
 
-        // 全局变量
-        let currentSessionId = 'session_' + Date.now();
         let messageCount = 1;
-        let chatHistory = [];
+        let currentTaskId = null;
+        let tenderFile = null;
+        let bidFile = null;
+        let pollInterval = null;
 
-        // DOM元素
         const chatForm = document.getElementById('chatForm');
         const chatInput = document.getElementById('chatInput');
         const chatContainer = document.getElementById('chatContainer');
-        const currentSessionIdEl = document.getElementById('currentSessionId');
-        const statusSessionIdEl = document.getElementById('statusSessionId');
         const messageCountEl = document.getElementById('messageCount');
         const toolListEl = document.getElementById('toolList');
-        const memoryContainerEl = document.getElementById('memoryContainer');
-        const sessionListEl = document.getElementById('sessionList');
-        const sessionDropdown = document.getElementById('sessionDropdown');
-        const sessionDropdownBtn = document.getElementById('sessionDropdownBtn');
-        const newSessionBtn = document.getElementById('newSessionBtn');
-        const clearChatBtn = document.getElementById('clearChatBtn');
-        const saveSessionBtn = document.getElementById('saveSessionBtn');
 
-        // API基础URL
-        const API_BASE = 'http://localhost:8000/api';
-
-        // 初始化
-        async function init() {
-            updateSessionIdDisplay();
-            await loadTools();
-            await loadSessions();
+        function switchTab(tab) {
+            const chatPanel = document.getElementById('chatPanel');
+            const tenderPanel = document.getElementById('tenderPanel');
+            const tabChat = document.getElementById('tabChat');
+            const tabTender = document.getElementById('tabTender');
+            if (tab === 'chat') {
+                chatPanel.classList.remove('hidden');
+                tenderPanel.classList.add('hidden');
+                tabChat.classList.add('tab-active');
+                tabTender.classList.remove('tab-active');
+            } else {
+                chatPanel.classList.add('hidden');
+                tenderPanel.classList.remove('hidden');
+                tabChat.classList.remove('tab-active');
+                tabTender.classList.add('tab-active');
+            }
         }
 
-        // 更新会话ID显示
-        function updateSessionIdDisplay() {
-            currentSessionIdEl.textContent = `会话 #${currentSessionId.split('_')[1]}`;
-            statusSessionIdEl.textContent = `#${currentSessionId.split('_')[1]}`;
-        }
-
-        // 加载工具列表
         async function loadTools() {
             try {
-                const response = await fetch(`${API_BASE}/agent/tools`);
+                const response = await fetch(API_BASE + '/agent/tools');
                 const data = await response.json();
-                
-                if (data.success) {
+                if (data.success && data.data) {
                     toolListEl.innerHTML = '';
                     data.data.forEach(tool => {
                         const toolItem = document.createElement('div');
                         toolItem.className = 'p-2 border border-gray-200 rounded-lg hover:bg-gray-50';
-                        toolItem.innerHTML = `
-                            <div class="font-medium text-sm">${tool.name}</div>
-                            <div class="text-xs text-gray-600 mt-1 line-clamp-2">${tool.description}</div>
-                        `;
+                        toolItem.innerHTML = '<div class="font-medium text-sm">' + tool.name + '</div><div class="text-xs text-gray-600 mt-1">' + tool.description + '</div>';
                         toolListEl.appendChild(toolItem);
                     });
                 }
-            } catch (error) {
-                console.error('加载工具失败:', error);
+            } catch (e) {
+                console.error('Load tools failed:', e);
             }
         }
 
-        // 加载会话列表
-        async function loadSessions() {
-            try {
-                const response = await fetch(`${API_BASE}/memory/sessions`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    sessionListEl.innerHTML = '';
-                    data.data.forEach(sessionId => {
-                        const sessionItem = document.createElement('div');
-                        sessionItem.className = 'px-3 py-2 rounded hover:bg-gray-100 cursor-pointer';
-                        sessionItem.textContent = `会话 #${sessionId.split('_')[1]}`;
-                        sessionItem.onclick = () => {
-                            currentSessionId = sessionId;
-                            updateSessionIdDisplay();
-                            loadSessionMessages();
-                            sessionDropdown.classList.add('hidden');
-                        };
-                        sessionListEl.appendChild(sessionItem);
-                    });
-                }
-            } catch (error) {
-                console.error('加载会话失败:', error);
-            }
-        }
-
-        // 加载会话消息
-        async function loadSessionMessages() {
-            try {
-                const response = await fetch(`${API_BASE}/memory/operation`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        session_id: currentSessionId,
-                        operation: 'get'
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    const messages = data.data.messages || [];
-                    chatHistory = messages;
-                    messageCount = messages.length;
-                    messageCountEl.textContent = messageCount;
-                    
-                    // 渲染消息
-                    chatContainer.innerHTML = '';
-                    messages.forEach(msg => {
-                        addMessageToChat(msg.role, msg.content);
-                    });
-                    
-                    // 更新记忆面板
-                    updateMemoryPanel(messages);
-                }
-            } catch (error) {
-                console.error('加载会话消息失败:', error);
-            }
-        }
-
-        // 发送消息
         async function sendMessage() {
             const message = chatInput.value.trim();
             if (!message) return;
-
-            // 添加用户消息
             addMessageToChat('user', message);
             chatInput.value = '';
             messageCount++;
             messageCountEl.textContent = messageCount;
-
-            // 显示加载状态
             const loadingId = addLoadingMessage();
-
             try {
-                // 调用Agent API
-                const response = await fetch(`${API_BASE}/agent/invoke`, {
+                const response = await fetch(API_BASE + '/agent/invoke', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        query: message,
-                        session_id: currentSessionId
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: message })
                 });
-
                 const data = await response.json();
-                
-                // 移除加载消息
                 removeLoadingMessage(loadingId);
-
                 if (data.success) {
-                    // 添加助手消息
-                    addMessageToChat('assistant', data.data.answer);
+                    addMessageToChat('assistant', data.data.answer, true);
                     messageCount++;
                     messageCountEl.textContent = messageCount;
-
-                    // 更新记忆面板
-                    updateMemoryPanel();
                 } else {
-                    addMessageToChat('assistant', `错误: ${data.error}`);
+                    addMessageToChat('assistant', 'Error: ' + data.error);
                     messageCount++;
                     messageCountEl.textContent = messageCount;
                 }
-            } catch (error) {
-                // 移除加载消息
+            } catch (e) {
                 removeLoadingMessage(loadingId);
-                addMessageToChat('assistant', `API错误: ${error.message}`);
+                addMessageToChat('assistant', 'API Error: ' + e.message);
                 messageCount++;
                 messageCountEl.textContent = messageCount;
             }
         }
 
-        // 添加消息到聊天界面
-        function addMessageToChat(role, content) {
+        function addMessageToChat(role, content, useMarkdown) {
             const messageEl = document.createElement('div');
-            messageEl.className = `flex items-start space-x-3 ${role === 'user' ? 'flex-row-reverse' : ''}`;
-            
+            messageEl.className = 'flex items-start space-x-3 ' + (role === 'user' ? 'flex-row-reverse' : '');
             const icon = role === 'user' ? 'user' : 'robot';
-            const bgColor = role === 'user' ? 'bg-primary text-white' : 'bg-gray-100';
+            const bgColor = role === 'user' ? 'bg-blue-500 text-white' : 'bg-gray-100';
             const textColor = role === 'user' ? 'text-white' : 'text-gray-700';
-            
-            messageEl.innerHTML = `
-                <div class="w-8 h-8 ${role === 'user' ? 'bg-primary' : 'bg-gray-100'} rounded-full flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="${icon}" class="w-5 h-5 ${role === 'user' ? 'text-white' : 'text-gray-600'}"></i>
-                </div>
-                <div class="flex-1">
-                    <div class="${bgColor} rounded-lg p-3">
-                        <p class="${textColor}">${content}</p>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1 ${role === 'user' ? 'text-right' : ''}">
-                        ${role === 'user' ? '你' : '智能助手'} • 刚刚
-                    </div>
-                </div>
-            `;
-            
+            let contentHtml = '';
+            if (useMarkdown && content) {
+                contentHtml = marked.parse(content);
+            } else {
+                contentHtml = '<p class="' + textColor + '">' + content + '</p>';
+            }
+            messageEl.innerHTML = '<div class="w-8 h-8 ' + (role === 'user' ? 'bg-blue-500' : 'bg-gray-100') + ' rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="' + icon + '" class="w-5 h-5 ' + (role === 'user' ? 'text-white' : 'text-gray-600') + '"></i></div><div class="flex-1"><div class="' + bgColor + ' rounded-lg p-3 ' + (useMarkdown ? 'markdown-body' : '') + '">' + contentHtml + '</div></div>';
             chatContainer.appendChild(messageEl);
             chatContainer.scrollTop = chatContainer.scrollHeight;
-            
-            // 重新初始化图标
             lucide.createIcons();
         }
 
-        // 添加加载消息
         function addLoadingMessage() {
             const loadingId = 'loading_' + Date.now();
             const loadingEl = document.createElement('div');
             loadingEl.id = loadingId;
             loadingEl.className = 'flex items-start space-x-3';
-            loadingEl.innerHTML = `
-                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="robot" class="w-5 h-5 text-gray-600"></i>
-                </div>
-                <div class="flex-1">
-                    <div class="bg-gray-100 rounded-lg p-3">
-                        <div class="flex space-x-1">
-                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0ms;"></div>
-                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 150ms;"></div>
-                            <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 300ms;"></div>
-                        </div>
-                    </div>
-                </div>
-            `;
-            
+            loadingEl.innerHTML = '<div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="robot" class="w-5 h-5 text-gray-600"></i></div><div class="flex-1"><div class="bg-gray-100 rounded-lg p-3"><div class="flex space-x-1"><div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms"></div><div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms"></div><div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms"></div></div></div></div>';
             chatContainer.appendChild(loadingEl);
             chatContainer.scrollTop = chatContainer.scrollHeight;
             lucide.createIcons();
             return loadingId;
         }
 
-        // 移除加载消息
         function removeLoadingMessage(loadingId) {
-            const loadingEl = document.getElementById(loadingId);
-            if (loadingEl) {
-                loadingEl.remove();
-            }
+            const el = document.getElementById(loadingId);
+            if (el) el.remove();
         }
 
-        // 更新记忆面板
-        function updateMemoryPanel(messages) {
-            memoryContainerEl.innerHTML = '';
-            const displayMessages = messages || chatHistory;
-            
-            displayMessages.forEach((msg, index) => {
-                const memoryItem = document.createElement('div');
-                memoryItem.className = 'text-xs p-1 border-b border-gray-100';
-                memoryItem.innerHTML = `
-                    <div class="font-medium ${msg.role === 'user' ? 'text-primary' : 'text-gray-600'}">
-                        ${msg.role === 'user' ? '你' : '助手'}:
-                    </div>
-                    <div class="text-gray-500 line-clamp-2">${msg.content}</div>
-                `;
-                memoryContainerEl.appendChild(memoryItem);
-            });
-        }
-
-        // 新会话
-        function startNewSession() {
-            currentSessionId = 'session_' + Date.now();
-            updateSessionIdDisplay();
-            chatContainer.innerHTML = '';
-            chatHistory = [];
-            messageCount = 0;
-            messageCountEl.textContent = messageCount;
-            memoryContainerEl.innerHTML = '<div class="text-sm text-gray-500">会话开始</div>';
-            
-            // 添加欢迎消息
-            addMessageToChat('assistant', '你好！我是工业知识智能助手。请问有什么可以帮助你的？');
-            messageCount++;
-            messageCountEl.textContent = messageCount;
-        }
-
-        // 清空聊天
         function clearChat() {
-            chatContainer.innerHTML = '';
-            chatHistory = [];
-            messageCount = 0;
+            chatContainer.innerHTML = '<div class="flex items-start space-x-3"><div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0"><i data-lucide="robot" class="w-5 h-5 text-gray-600"></i></div><div class="flex-1"><div class="bg-gray-100 rounded-lg p-3"><p class="text-gray-700">Hello! How can I help you?</p></div></div></div>';
+            messageCount = 1;
             messageCountEl.textContent = messageCount;
-            memoryContainerEl.innerHTML = '<div class="text-sm text-gray-500">会话开始</div>';
         }
 
-        // 保存会话
-        async function saveSession() {
-            try {
-                const response = await fetch(`${API_BASE}/memory/operation`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        session_id: currentSessionId,
-                        operation: 'save',
-                        data: {
-                            messages: chatHistory
-                        }
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    alert('会话已保存');
-                } else {
-                    alert('保存失败: ' + data.error);
-                }
-            } catch (error) {
-                alert('保存失败: ' + error.message);
-            }
-        }
-
-        // 事件监听
-        chatForm.addEventListener('submit', (e) => {
+        chatForm.addEventListener('submit', function(e) {
             e.preventDefault();
             sendMessage();
         });
 
-        chatInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+        async function createTenderTask() {
+            const projectName = document.getElementById('projectName').value.trim();
+            const projectType = document.getElementById('projectType').value;
+            const companyName = document.getElementById('companyName').value.trim();
+            if (!projectName) {
+                alert('Please enter project name');
+                return;
             }
-        });
-
-        newSessionBtn.addEventListener('click', startNewSession);
-        clearChatBtn.addEventListener('click', clearChat);
-        saveSessionBtn.addEventListener('click', saveSession);
-
-        sessionDropdownBtn.addEventListener('click', () => {
-            sessionDropdown.classList.toggle('hidden');
-        });
-
-        // 点击外部关闭下拉菜单
-        document.addEventListener('click', (e) => {
-            if (!sessionDropdownBtn.contains(e.target) && !sessionDropdown.contains(e.target)) {
-                sessionDropdown.classList.add('hidden');
+            try {
+                const response = await fetch(API_BASE + '/tender/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_name: projectName,
+                        project_type: projectType,
+                        company_name: companyName
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentTaskId = data.data.task_id;
+                    document.getElementById('currentTaskId').textContent = currentTaskId;
+                    document.getElementById('uploadSection').classList.remove('hidden');
+                    document.getElementById('createTaskBtn').disabled = true;
+                    document.getElementById('createTaskBtn').textContent = 'Task Created';
+                } else {
+                    alert('Create task failed: ' + data.error);
+                }
+            } catch (e) {
+                alert('Create task failed: ' + e.message);
             }
-        });
+        }
 
-        // 初始化
-        init();
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e, fileType) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) processFile(files[0], fileType);
+        }
+
+        function handleFileSelect(e, fileType) {
+            const files = e.target.files;
+            if (files.length > 0) processFile(files[0], fileType);
+        }
+
+        async function processFile(file, fileType) {
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                alert('Please upload PDF file');
+                return;
+            }
+            if (fileType === 'tender') {
+                tenderFile = file;
+                document.getElementById('tenderFileName').textContent = 'OK: ' + file.name;
+                document.getElementById('tenderFileName').classList.remove('hidden');
+            } else {
+                bidFile = file;
+                document.getElementById('bidFileName').textContent = 'OK: ' + file.name;
+                document.getElementById('bidFileName').classList.remove('hidden');
+            }
+            await uploadFile(file, fileType);
+        }
+
+        async function uploadFile(file, fileType) {
+            const formData = new FormData();
+            formData.append('file', file);
+            try {
+                const response = await fetch(API_BASE + '/tender/upload/' + currentTaskId + '/' + fileType, {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (data.success) {
+                    updateStartButton();
+                } else {
+                    alert('Upload failed: ' + data.error);
+                }
+            } catch (e) {
+                alert('Upload failed: ' + e.message);
+            }
+        }
+
+        function updateStartButton() {
+            const btn = document.getElementById('startAuditBtn');
+            if (tenderFile && bidFile) btn.disabled = false;
+        }
+
+        async function startAudit() {
+            const useMock = document.getElementById('useMockCheck').checked;
+            document.getElementById('uploadSection').classList.add('hidden');
+            document.getElementById('progressSection').classList.remove('hidden');
+            document.getElementById('placeholderSection').classList.add('hidden');
+            try {
+                const response = await fetch(API_BASE + '/tender/audit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ task_id: currentTaskId, use_mock: useMock })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    pollInterval = setInterval(pollStatus, 1000);
+                } else {
+                    alert('Start audit failed: ' + data.error);
+                }
+            } catch (e) {
+                alert('Start audit failed: ' + e.message);
+            }
+        }
+
+        async function pollStatus() {
+            try {
+                const response = await fetch(API_BASE + '/tender/status/' + currentTaskId);
+                const data = await response.json();
+                if (data.success) {
+                    updateProgressUI(data.data);
+                    if (data.data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        loadReport();
+                    } else if (data.data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        alert('Audit failed: ' + data.data.error);
+                    }
+                }
+            } catch (e) {
+                console.error('Polling failed:', e);
+            }
+        }
+
+        function updateProgressUI(taskData) {
+            document.getElementById('statusMessage').textContent = taskData.message;
+            for (let i = 1; i <= 5; i++) {
+                const stageEl = document.getElementById('stage' + i);
+                const circle = stageEl.querySelector('div');
+                if (i < taskData.current_stage) {
+                    stageEl.classList.remove('text-gray-400');
+                    stageEl.classList.add('text-green-600');
+                    circle.classList.remove('border-gray-300');
+                    circle.classList.add('bg-green-500', 'border-green-500');
+                    circle.innerHTML = '<i data-lucide="check" class="w-3 h-3 text-white"></i>';
+                } else if (i === taskData.current_stage) {
+                    stageEl.classList.remove('text-gray-400');
+                    stageEl.classList.add('text-blue-500');
+                    circle.classList.remove('border-gray-300');
+                    circle.classList.add('border-blue-500', 'bg-blue-500', 'text-white');
+                }
+            }
+            lucide.createIcons();
+        }
+
+        async function loadReport() {
+            try {
+                const response = await fetch(API_BASE + '/tender/report/' + currentTaskId);
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('progressSection').classList.add('hidden');
+                    document.getElementById('resultSection').classList.remove('hidden');
+                    const report = data.data.report;
+                    document.getElementById('scoreValue').textContent = report.overall_compliance_score || 0;
+                    const riskLevel = document.getElementById('riskLevel');
+                    riskLevel.textContent = report.risk_level || 'Unknown';
+                    riskLevel.className = 'px-2 py-1 rounded text-sm font-medium';
+                    if (report.risk_level === '高风险' || report.risk_level === 'High') {
+                        riskLevel.classList.add('bg-red-100', 'text-red-700');
+                    } else if (report.risk_level === '中风险' || report.risk_level === 'Medium') {
+                        riskLevel.classList.add('bg-yellow-100', 'text-yellow-700');
+                    } else {
+                        riskLevel.classList.add('bg-green-100', 'text-green-700');
+                    }
+                    if (data.data.markdown) {
+                        document.getElementById('reportContent').innerHTML = marked.parse(data.data.markdown);
+                    }
+                }
+            } catch (e) {
+                alert('Load report failed: ' + e.message);
+            }
+        }
+
+        function downloadReport(format) {
+            window.open(API_BASE + '/tender/download/' + currentTaskId + '?format=' + format, '_blank');
+        }
+
+        loadTools();
     </script>
 </body>
 </html>

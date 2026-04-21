@@ -36,6 +36,19 @@
   - `LLM_MODEL_NAME`、`EMBEDDING_MODEL_NAME`
 - 使用 Qdrant Cloud 时，`QDRANT_HOST` 可直接填完整 URL（含 `https://`）。
 
+### MinerU 配置
+
+- `MINERU_API_BASE`: MinerU 服务地址，官方云端 API 为 `https://mineru.net`
+- `MINERU_API_KEY`: MinerU API 密钥（云端 API 必需）
+- `MINERU_ENABLED`: 是否启用 MinerU（`true`/`false`）
+- `MINERU_TIMEOUT`: 解析超时时间（秒）
+- `MINERU_OUTPUT_FORMAT`: 输出格式（`markdown`/`json`）
+- `MINERU_ENABLE_OCR`: 是否启用 OCR（`true`/`false`）
+- `MINERU_ENABLE_FORMULA`: 是否启用公式识别（`true`/`false`）
+- `MINERU_ENABLE_TABLE`: 是否启用表格识别（`true`/`false`）
+
+**注意**: `.env` 文件只增不减，配置变更需记录于此。
+
 ## 启动方式
 
 - 一键启动前后端：`python start.py`
