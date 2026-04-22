@@ -10,6 +10,7 @@ Stage 3: 核对引擎层 (Compliance Engine)
 """
 
 import logging
+import json
 from typing import List, Dict, Any, Optional, Callable, Union
 from dataclasses import dataclass
 
@@ -203,21 +204,156 @@ class SoftCheckEngine:
         """
         执行Soft Check语义评估
 
-        简化实现，实际应调用LLM
+        使用LLM进行语义相似度和响应质量评估
         """
-        # TODO: 实现LLM调用
-        # 这里返回一个占位结果
+        import json
+        from langchain_core.messages import HumanMessage, SystemMessage
 
-        return SoftCheckResult(
-            is_responded="待评估",
-            response_quality="待评估",
-            suggested_score=0,
-            max_score=tender_item.score_weight,
-            confidence=0.0,
-            reasoning="Soft Check尚未实现",
-            evidence="",
-            needs_manual_review=True,
-        )
+        try:
+            # 尝试导入LLM
+            from langchain_rag.llm.qwen import get_qwen_chat
+        except ImportError:
+            logger.warning("LLM module not available, returning placeholder result")
+            return SoftCheckResult(
+                is_responded="未响应",
+                response_quality="待评估",
+                suggested_score=0,
+                max_score=tender_item.score_weight,
+                confidence=0.0,
+                reasoning="LLM模块不可用",
+                evidence="",
+                needs_manual_review=True,
+            )
+
+        # 从bid_response中提取相关内容
+        bid_content = self._extract_relevant_content(tender_item, bid_response)
+
+        if not bid_content:
+            return SoftCheckResult(
+                is_responded="未响应",
+                response_quality="差",
+                suggested_score=0,
+                max_score=tender_item.score_weight,
+                confidence=0.9,
+                reasoning="投标文件中未找到对此条款的响应",
+                evidence="",
+                needs_manual_review=True,
+            )
+
+        # 构建LLM提示词
+        system_prompt = """你是一个专业的标书审核专家。请评估投标响应与招标条款的匹配程度。
+
+请按以下JSON格式输出评估结果：
+{
+    "is_responded": "已响应|未响应|部分响应",
+    "response_quality": "优|良|中|差",
+    "suggested_score": 0-100,
+    "confidence": 0.0-1.0,
+    "reasoning": "评估理由",
+    "evidence": "关键证据引用"
+}
+
+评分标准：
+- 优：完全响应，内容详实，超出预期
+- 良：完整响应，内容充分
+- 中：基本响应，内容有欠缺
+- 差：响应不充分或有重大遗漏
+"""
+
+        user_prompt = f"""招标条款：
+编号：{tender_item.sequence}
+内容：{tender_item.content}
+类型：{tender_item.type}
+
+投标响应：
+{bid_content}
+
+请评估该投标响应的质量。"""
+
+        try:
+            llm = get_qwen_chat(
+                model_name=self.llm_model,
+                temperature=0.1,
+                max_tokens=500,
+            )
+
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ]
+
+            response = llm.invoke(messages)
+            result_text = response.content.strip()
+
+            # 尝试解析JSON
+            try:
+                # 清理响应（可能包裹在```json ```中）
+                if result_text.startswith("```json"):
+                    result_text = result_text[7:]
+                if result_text.startswith("```"):
+                    result_text = result_text[3:]
+                if result_text.endswith("```"):
+                    result_text = result_text[:-3]
+
+                result_json = json.loads(result_text.strip())
+
+                return SoftCheckResult(
+                    is_responded=result_json.get("is_responded", "待评估"),
+                    response_quality=result_json.get("response_quality", "待评估"),
+                    suggested_score=result_json.get("suggested_score", 0),
+                    max_score=tender_item.score_weight,
+                    confidence=result_json.get("confidence", 0.5),
+                    reasoning=result_json.get("reasoning", ""),
+                    evidence=result_json.get("evidence", ""),
+                    needs_manual_review=result_json.get("confidence", 0) < self.confidence_threshold,
+                )
+            except json.JSONDecodeError:
+                # JSON解析失败，返回简单评估
+                return SoftCheckResult(
+                    is_responded="已响应",
+                    response_quality="中",
+                    suggested_score=tender_item.score_weight * 0.5,
+                    max_score=tender_item.score_weight,
+                    confidence=0.5,
+                    reasoning="LLM响应格式异常，需人工审核",
+                    evidence=result_text[:200],
+                    needs_manual_review=True,
+                )
+
+        except Exception as e:
+            logger.error(f"Soft Check LLM call failed: {e}")
+            return SoftCheckResult(
+                is_responded="待评估",
+                response_quality="待评估",
+                suggested_score=0,
+                max_score=tender_item.score_weight,
+                confidence=0.0,
+                reasoning=f"LLM调用失败: {str(e)}",
+                evidence="",
+                needs_manual_review=True,
+            )
+
+    def _extract_relevant_content(self, tender_item: TenderItem, bid_response: Dict[str, Any]) -> str:
+        """从投标响应中提取与招标条款相关的内容"""
+        relevant_parts = []
+
+        # 从技术方案中查找
+        technical_proposal = bid_response.get("technical_proposal", {})
+        for section, content in technical_proposal.items():
+            if any(kw in str(content) for kw in tender_item.keywords):
+                relevant_parts.append(f"[{section}]\n{content}")
+
+        # 从设备参数表中查找
+        equipment_tables = bid_response.get("equipment_tables", [])
+        for table in equipment_tables:
+            rows = table.get("rows", [])
+            for row in rows:
+                params = row.get("parameters", {})
+                param_str = json.dumps(params, ensure_ascii=False)
+                if any(kw in param_str for kw in tender_item.keywords):
+                    relevant_parts.append(f"[设备表: {table.get('name', '未知')}]\n{param_str}")
+
+        return "\n\n".join(relevant_parts) if relevant_parts else ""
 
 
 class KBVerifyEngine:
@@ -245,19 +381,196 @@ class KBVerifyEngine:
         """
         执行KB知识库校验
 
-        简化实现，实际应查询Qdrant
+        使用Qdrant查询验证厂家参数的真实性
         """
-        # TODO: 实现Qdrant查询
-        # 这里返回一个占位结果
+        parameter_alerts = []
+        kb_value = None
+        bid_value = None
+        deviation_percent = None
+        model_found = False
+        kb_matched = False
 
-        return KBVerifyResult(
-            kb_matched=False,
-            model_found=False,
-            parameter_alerts=[],
-            kb_value=None,
-            bid_value=None,
-            deviation_percent=None,
+        # 如果没有量化指标，无需KB校验
+        if not tender_item.quantifiable or not tender_item.metric:
+            return KBVerifyResult(
+                kb_matched=False,
+                model_found=False,
+                parameter_alerts=["无非标参数需要校验"],
+                kb_value=None,
+                bid_value=None,
+                deviation_percent=None,
+            )
+
+        try:
+            # 尝试导入Qdrant
+            from langchain_rag.vectorstore.qdrant import get_qdrant_vectorstore
+        except ImportError:
+            logger.warning("Qdrant module not available, returning placeholder result")
+            return KBVerifyResult(
+                kb_matched=False,
+                model_found=False,
+                parameter_alerts=["知识库模块不可用"],
+                kb_value=None,
+                bid_value=None,
+                deviation_percent=None,
+            )
+
+        metric = tender_item.metric
+        param_name = metric.parameter
+
+        # 从投标响应中提取设备型号和参数值
+        bid_model, bid_val = self._extract_model_and_value(
+            tender_item, bid_response, param_name
         )
+
+        if not bid_model:
+            return KBVerifyResult(
+                kb_matched=False,
+                model_found=False,
+                parameter_alerts=["未找到设备型号，无法进行KB校验"],
+                kb_value=None,
+                bid_value=bid_val,
+                deviation_percent=None,
+            )
+
+        bid_value = bid_val
+
+        try:
+            # 查询Qdrant知识库
+            vectorstore = get_qdrant_vectorstore(
+                collection_name=self.collection,
+                qdrant_host=self.qdrant_host,
+            )
+
+            # 搜索相关设备
+            query_text = f"设备型号 {bid_model} {param_name}"
+            docs = vectorstore.similarity_search(query_text, k=3)
+
+            if not docs:
+                parameter_alerts.append(f"知识库中未找到型号 {bid_model}")
+                return KBVerifyResult(
+                    kb_matched=True,
+                    model_found=False,
+                    parameter_alerts=parameter_alerts,
+                    kb_value=None,
+                    bid_value=bid_value,
+                    deviation_percent=None,
+                )
+
+            model_found = True
+            kb_matched = True
+
+            # 从检索结果中提取参数值
+            kb_val = self._extract_param_from_docs(docs, param_name)
+
+            if kb_val is None:
+                parameter_alerts.append(f"知识库中找到型号 {bid_model}，但未找到{param_name}参数")
+                return KBVerifyResult(
+                    kb_matched=True,
+                    model_found=True,
+                    parameter_alerts=parameter_alerts,
+                    kb_value=None,
+                    bid_value=bid_value,
+                    deviation_percent=None,
+                )
+
+            kb_value = kb_val
+
+            # 计算偏离百分比
+            if isinstance(kb_val, (int, float)) and isinstance(bid_val, (int, float)) and kb_val != 0:
+                deviation_percent = abs((bid_val - kb_val) / kb_val) * 100
+
+                if deviation_percent > self.deviation_threshold:
+                    parameter_alerts.append(
+                        f"{param_name}参数偏离知识库 {deviation_percent:.1f}% "
+                        f"(厂家标称: {kb_val}, 投标: {bid_val})"
+                    )
+
+            return KBVerifyResult(
+                kb_matched=kb_matched,
+                model_found=model_found,
+                parameter_alerts=parameter_alerts,
+                kb_value=kb_value,
+                bid_value=bid_value,
+                deviation_percent=deviation_percent,
+            )
+
+        except Exception as e:
+            logger.error(f"KB Verify Qdrant query failed: {e}")
+            parameter_alerts.append(f"知识库查询失败: {str(e)}")
+            return KBVerifyResult(
+                kb_matched=False,
+                model_found=False,
+                parameter_alerts=parameter_alerts,
+                kb_value=None,
+                bid_value=bid_value,
+                deviation_percent=None,
+            )
+
+    def _extract_model_and_value(
+        self,
+        tender_item: TenderItem,
+        bid_response: Dict[str, Any],
+        param_name: str,
+    ) -> tuple[Optional[str], Optional[Any]]:
+        """从投标响应中提取设备型号和参数值"""
+        equipment_tables = bid_response.get("equipment_tables", [])
+
+        for table in equipment_tables:
+            rows = table.get("rows", [])
+            for row in rows:
+                model = row.get("model")
+                params = row.get("parameters", {})
+
+                # 查找参数值
+                param_mapping = {
+                    "COP": ["COP", "cop"],
+                    "IPLV": ["IPLV", "iplv"],
+                    "制冷量": ["制冷量_kW", "制冷量", "制冷量(kW)"],
+                    "输入功率": ["输入功率_kW", "输入功率", "功率"],
+                }
+
+                possible_keys = param_mapping.get(param_name, [param_name])
+                param_val = None
+                for key in possible_keys:
+                    if key in params:
+                        param_val = params[key]
+                        break
+
+                if model and param_val is not None:
+                    return model, param_val
+
+        return None, None
+
+    def _extract_param_from_docs(self, docs, param_name: str) -> Optional[Any]:
+        """从检索文档中提取参数值"""
+        for doc in docs:
+            content = doc.page_content
+            metadata = doc.metadata or {}
+
+            # 先尝试从metadata获取
+            if param_name in metadata:
+                val = metadata[param_name]
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return val
+
+            # 尝试从content中解析
+            import re
+            patterns = [
+                rf"{param_name}[：:]\s*([\d.]+)",
+                rf"{param_name}\s*=\s*([\d.]+)",
+            ]
+            for pattern in patterns:
+                match = re.search(pattern, content)
+                if match:
+                    try:
+                        return float(match.group(1))
+                    except (ValueError, TypeError):
+                        pass
+
+        return None
 
 
 class Stage3Compliance:

@@ -6,6 +6,13 @@
 *~
 .DS_Store
 
+# 临时测试文件（保留有用工具）
+check_*.py
+test_*.py
+verify_*.py
+!check_config.py
+!test_imports.py
+
 # 虚拟环境
 venv/
 env/

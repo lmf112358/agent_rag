@@ -14,12 +14,62 @@ import logging
 import zipfile
 import io
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable, TypeVar
 from dataclasses import dataclass
+from functools import wraps
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar('T')
+
+
+def retry_on_failure(
+    max_retries: int = 3,
+    base_delay: float = 2.0,
+    max_delay: float = 60.0,
+    backoff_factor: float = 2.0,
+    retryable_exceptions: tuple = (requests.exceptions.RequestException,),
+):
+    """
+    重试装饰器：指数退避重试机制
+
+    Args:
+        max_retries: 最大重试次数
+        base_delay: 初始延迟（秒）
+        max_delay: 最大延迟（秒）
+        backoff_factor: 退避因子
+        retryable_exceptions: 可重试的异常类型
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> T:
+            last_exception = None
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except retryable_exceptions as e:
+                    last_exception = e
+                    if attempt >= max_retries:
+                        logger.error(f"Final attempt {attempt + 1} failed, no more retries")
+                        raise
+
+                    # 计算延迟：指数退避 + 随机抖动
+                    delay = min(base_delay * (backoff_factor ** attempt), max_delay)
+                    # 添加±10%的随机抖动避免雪崩
+                    jitter = delay * 0.1 * (2 * (os.urandom(1)[0] / 255 - 0.5))
+                    delay_with_jitter = max(0.5, delay + jitter)
+
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries + 1} failed: {e}. "
+                        f"Retrying in {delay_with_jitter:.1f}s..."
+                    )
+                    time.sleep(delay_with_jitter)
+
+            raise last_exception  # type: ignore
+        return wrapper
+    return decorator
 
 
 @dataclass
@@ -72,6 +122,7 @@ class MinerUClient:
             # 云端API使用 Authorization: Bearer {token}
             self.session.headers.update({"Authorization": f"Bearer {api_key}"})
 
+    @retry_on_failure(max_retries=2, base_delay=1.0)
     def health_check(self) -> bool:
         """
         检查 MinerU 服务是否可用
@@ -269,13 +320,17 @@ class MinerUClient:
             "language": "ch",
         }
 
-        response = self.session.post(
-            apply_url,
-            json=apply_data,
-            timeout=self.timeout,
-        )
-        response.raise_for_status()
-        apply_result = response.json()
+        @retry_on_failure(max_retries=3, base_delay=2.0)
+        def _apply_upload():
+            resp = self.session.post(
+                apply_url,
+                json=apply_data,
+                timeout=self.timeout,
+            )
+            resp.raise_for_status()
+            return resp.json()
+
+        apply_result = _apply_upload()
 
         if apply_result.get("code") != 0:
             return MinerUParseResult(
@@ -292,13 +347,19 @@ class MinerUClient:
         # 步骤2: PUT上传文件
         # ==========================================
         logger.info("Step 2: Upload file")
-        with open(path, "rb") as f:
-            upload_response = requests.put(
-                upload_url,
-                data=f,
-                timeout=self.timeout,
-            )
-        upload_response.raise_for_status()
+
+        @retry_on_failure(max_retries=3, base_delay=3.0)
+        def _upload_file():
+            with open(path, "rb") as f:
+                resp = requests.put(
+                    upload_url,
+                    data=f,
+                    timeout=self.timeout,
+                )
+            resp.raise_for_status()
+            return resp
+
+        _upload_file()
         logger.info("File uploaded successfully")
 
         # ==========================================
@@ -350,11 +411,16 @@ class MinerUClient:
         poll_url = f"{self.api_base}/api/v4/extract-results/batch/{batch_id}"
         logger.info(f"Polling batch result: {poll_url}")
 
+        @retry_on_failure(max_retries=2, base_delay=1.0)
+        def _poll_once():
+            """单次轮询请求（带重试）"""
+            resp = self.session.get(poll_url, timeout=self.timeout)
+            resp.raise_for_status()
+            return resp.json()
+
         for i in range(self.max_polls):
             try:
-                response = self.session.get(poll_url, timeout=self.timeout)
-                response.raise_for_status()
-                result = response.json()
+                result = _poll_once()
 
                 # 调试日志：打印完整响应
                 if i == 0:
@@ -407,8 +473,14 @@ class MinerUClient:
     def _download_and_extract_markdown(self, zip_url: str) -> Dict[str, Any]:
         """下载ZIP并提取full.md"""
         logger.info("Downloading result ZIP...")
-        zip_resp = requests.get(zip_url, timeout=self.timeout)
-        zip_resp.raise_for_status()
+
+        @retry_on_failure(max_retries=3, base_delay=2.0)
+        def _download_zip():
+            resp = requests.get(zip_url, timeout=self.timeout)
+            resp.raise_for_status()
+            return resp
+
+        zip_resp = _download_zip()
 
         logger.info("Extracting full.md from ZIP...")
         with zipfile.ZipFile(io.BytesIO(zip_resp.content)) as zf:

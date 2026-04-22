@@ -360,17 +360,264 @@ class Stage2Aligner:
     ) -> BidResponse:
         """
         解析投标书响应
-        简化版本，实际实现需要更复杂的表格提取逻辑
+
+        从Markdown中提取：
+        1. 设备参数表
+        2. 偏离表
+        3. 技术方案章节
+        4. 资质文件列表
         """
-        # 简化实现，实际应该从Markdown中提取表格
-        # 这里仅作为框架占位
+        if not bid_doc.markdown:
+            logger.warning("投标书Markdown为空")
+            return BidResponse(
+                bid_id=bid_doc.bid_id,
+                tender_id=bid_doc.tender_id,
+                project_name=bid_doc.company_name,
+                equipment_tables=[],
+                deviation_table={},
+                technical_proposal={},
+                qualification_docs=[],
+            )
+
+        markdown = bid_doc.markdown
+
+        # 1. 提取设备参数表
+        equipment_tables = self._extract_equipment_tables(markdown)
+        logger.info(f"    提取 {len(equipment_tables)} 个设备参数表")
+
+        # 2. 提取偏离表
+        deviation_table = self._extract_deviation_table(markdown)
+        logger.info(f"    提取 {len(deviation_table)} 条偏离记录")
+
+        # 3. 提取技术方案章节
+        technical_proposal = self._extract_technical_sections(markdown)
+        logger.info(f"    提取 {len(technical_proposal)} 个技术方案章节")
+
+        # 4. 提取资质文件
+        qualification_docs = self._extract_qualification_docs(markdown)
+        logger.info(f"    提取 {len(qualification_docs)} 个资质文件")
 
         return BidResponse(
             bid_id=bid_doc.bid_id,
             tender_id=bid_doc.tender_id,
-            project_name=bid_doc.company_name,
-            equipment_tables=[],  # 实际应从Markdown提取
-            deviation_table={},
-            technical_proposal={},
-            qualification_docs=[],
+            project_name=bid_doc.company_name or "未命名项目",
+            equipment_tables=equipment_tables,
+            deviation_table=deviation_table,
+            technical_proposal=technical_proposal,
+            qualification_docs=qualification_docs,
         )
+
+    def _extract_equipment_tables(self, markdown: str) -> List[Dict[str, Any]]:
+        """
+        从Markdown中提取设备参数表
+
+        识别Markdown表格并解析为结构化数据
+        """
+        import re
+
+        tables = []
+        lines = markdown.split('\n')
+        current_table = []
+        in_table = False
+        table_start_line = 0
+
+        for i, line in enumerate(lines):
+            # 检测表格起始（Markdown表格有 | 分隔符）
+            if '|' in line and line.count('|') >= 2:
+                if not in_table:
+                    # 尝试查找表格标题（前几行）
+                    table_title = self._find_table_title(lines, max(0, i - 5), i)
+                    current_table = {
+                        "name": table_title or f"设备表{len(tables) + 1}",
+                        "start_line": i,
+                        "rows": [],
+                    }
+                    in_table = True
+                    table_start_line = i
+
+                # 添加表格行
+                current_table["rows"].append(line.strip())
+            else:
+                if in_table:
+                    # 表格结束，解析它
+                    parsed_rows = self._parse_markdown_table(current_table["rows"])
+                    if parsed_rows:
+                        current_table["rows"] = parsed_rows
+                        tables.append(current_table)
+                    in_table = False
+
+        # 处理最后一个表格
+        if in_table and current_table:
+            parsed_rows = self._parse_markdown_table(current_table["rows"])
+            if parsed_rows:
+                current_table["rows"] = parsed_rows
+                tables.append(current_table)
+
+        return tables
+
+    def _find_table_title(self, lines: List[str], start: int, end: int) -> Optional[str]:
+        """查找表格标题（在表格前几行中）"""
+        import re
+
+        # 常见表格标题关键词
+        title_keywords = [
+            "设备", "参数", "规格", "技术", "配置", "选型", "清单", "主要",
+            "冷水机组", "冷却塔", "水泵", "主机", "辅机"
+        ]
+
+        for i in range(start, end):
+            line = lines[i].strip()
+            if any(kw in line for kw in title_keywords):
+                # 清理标题（移除#等标记）
+                line = re.sub(r'^#+\s*', '', line)
+                line = re.sub(r'^[-*]\s*', '', line)
+                if line:
+                    return line
+
+        return None
+
+    def _parse_markdown_table(self, table_lines: List[str]) -> List[Dict[str, Any]]:
+        """解析Markdown表格为结构化行数据"""
+        if len(table_lines) < 3:  # 至少需要标题、分隔线、数据行
+            return []
+
+        # 提取表头
+        header_line = table_lines[0]
+        headers = [h.strip() for h in header_line.split('|') if h.strip()]
+
+        if not headers:
+            return []
+
+        rows = []
+        # 从第3行开始（跳过分隔线）
+        for line in table_lines[2:]:
+            if '|' not in line:
+                continue
+
+            cells = [c.strip() for c in line.split('|') if c.strip()]
+            if len(cells) != len(headers):
+                continue
+
+            row_data = {}
+            parameters = {}
+            model = None
+            brand = None
+
+            for header, cell in zip(headers, cells):
+                # 识别常见列
+                header_lower = header.lower()
+                if '型号' in header or 'model' in header_lower:
+                    model = cell
+                elif '品牌' in header or 'brand' in header_lower:
+                    brand = cell
+                else:
+                    # 尝试解析数值
+                    value = self._parse_numeric_value(cell)
+                    parameters[header] = value if value is not None else cell
+
+            row_data = {
+                "model": model,
+                "brand": brand,
+                "parameters": parameters,
+            }
+            rows.append(row_data)
+
+        return rows
+
+    def _parse_numeric_value(self, cell: str) -> Optional[float]:
+        """尝试解析单元格中的数值"""
+        import re
+
+        # 移除单位
+        cleaned = re.sub(r'[^\d.\-]', '', cell)
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return None
+
+    def _extract_deviation_table(self, markdown: str) -> Dict[str, Any]:
+        """提取偏离表"""
+        import re
+
+        deviation_table = {}
+
+        # 查找偏离表关键词
+        deviation_keywords = ["偏离表", "差异表", "偏差表", "响应表"]
+        lines = markdown.split('\n')
+
+        in_deviation_section = False
+        for i, line in enumerate(lines):
+            if any(kw in line for kw in deviation_keywords):
+                in_deviation_section = True
+                continue
+
+            if in_deviation_section:
+                # 简单提取：查找带"正偏离"、"负偏离"、"无偏离"的行
+                if "正偏离" in line or "负偏离" in line or "无偏离" in line:
+                    deviation_table[f"line_{i}"] = line.strip()
+
+                # 如果遇到下一个标题，结束
+                if line.startswith('#') and i > 10:
+                    break
+
+        return deviation_table
+
+    def _extract_technical_sections(self, markdown: str) -> Dict[str, str]:
+        """提取技术方案章节"""
+        sections = {}
+        lines = markdown.split('\n')
+        current_section = None
+        current_content = []
+
+        # 技术方案相关标题
+        tech_section_keywords = [
+            "技术方案", "技术说明", "技术描述", "实施方案", "施工方案",
+            "调试方案", "验收方案", "培训方案", "售后服务", "质保",
+        ]
+
+        for line in lines:
+            # 检测标题行
+            if line.startswith('#'):
+                # 保存之前的章节
+                if current_section and current_content:
+                    sections[current_section] = '\n'.join(current_content).strip()
+
+                # 检查是否为技术相关章节
+                title = line.lstrip('#').strip()
+                if any(kw in title for kw in tech_section_keywords):
+                    current_section = title
+                    current_content = []
+                else:
+                    current_section = None
+                    current_content = []
+            elif current_section is not None:
+                current_content.append(line)
+
+        # 保存最后一个章节
+        if current_section and current_content:
+            sections[current_section] = '\n'.join(current_content).strip()
+
+        return sections
+
+    def _extract_qualification_docs(self, markdown: str) -> List[Dict[str, Any]]:
+        """提取资质文件列表"""
+        import re
+
+        qualifications = []
+
+        # 资质关键词
+        qual_keywords = [
+            "资质", "证书", "认证", "执照", "许可证", "ISO", "CCC", "CE",
+            "质量管理", "环境管理", "职业健康", "安全生产",
+        ]
+
+        lines = markdown.split('\n')
+        for i, line in enumerate(lines):
+            if any(kw in line for kw in qual_keywords):
+                # 简单提取：记录包含资质关键词的行
+                qualifications.append({
+                    "line_number": i,
+                    "content": line.strip(),
+                })
+
+        return qualifications

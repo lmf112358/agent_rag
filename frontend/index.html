@@ -249,6 +249,40 @@
         lucide.createIcons();
         const API_BASE = 'http://localhost:8000/api';
 
+        /**
+         * 带重试的fetch请求
+         * @param {string} url - 请求URL
+         * @param {RequestInit} options - fetch选项
+         * @param {number} maxRetries - 最大重试次数
+         * @param {number} baseDelay - 初始延迟（毫秒）
+         * @returns {Promise<Response>}
+         */
+        async function fetchWithRetry(url, options = {}, maxRetries = 3, baseDelay = 1000) {
+            let lastError;
+            for (let attempt = 0; attempt <= maxRetries; attempt++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response;
+                } catch (error) {
+                    lastError = error;
+                    if (attempt >= maxRetries) {
+                        console.error(`Final attempt ${attempt + 1} failed, no more retries`);
+                        throw error;
+                    }
+                    // 指数退避 + 随机抖动
+                    const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000);
+                    const jitter = delay * 0.1 * (2 * Math.random() - 1);
+                    const delayWithJitter = Math.max(500, delay + jitter);
+                    console.warn(`Attempt ${attempt + 1}/${maxRetries + 1} failed: ${error.message}. Retrying in ${(delayWithJitter / 1000).toFixed(1)}s...`);
+                    await new Promise(resolve => setTimeout(resolve, delayWithJitter));
+                }
+            }
+            throw lastError;
+        }
+
         let messageCount = 1;
         let currentTaskId = null;
         let tenderFile = null;
@@ -281,7 +315,7 @@
 
         async function loadTools() {
             try {
-                const response = await fetch(API_BASE + '/agent/tools');
+                const response = await fetchWithRetry(API_BASE + '/agent/tools', {}, 2, 500);
                 const data = await response.json();
                 if (data.success && data.data) {
                     toolListEl.innerHTML = '';
@@ -306,11 +340,11 @@
             messageCountEl.textContent = messageCount;
             const loadingId = addLoadingMessage();
             try {
-                const response = await fetch(API_BASE + '/agent/invoke', {
+                const response = await fetchWithRetry(API_BASE + '/agent/invoke', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: message })
-                });
+                }, 2, 1000);
                 const data = await response.json();
                 removeLoadingMessage(loadingId);
                 if (data.success) {
@@ -385,7 +419,7 @@
                 return;
             }
             try {
-                const response = await fetch(API_BASE + '/tender/create', {
+                const response = await fetchWithRetry(API_BASE + '/tender/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -393,7 +427,7 @@
                         project_type: projectType,
                         company_name: companyName
                     })
-                });
+                }, 3, 1000);
                 const data = await response.json();
                 if (data.success) {
                     currentTaskId = data.data.task_id;
@@ -452,10 +486,10 @@
             const formData = new FormData();
             formData.append('file', file);
             try {
-                const response = await fetch(API_BASE + '/tender/upload/' + currentTaskId + '/' + fileType, {
+                const response = await fetchWithRetry(API_BASE + '/tender/upload/' + currentTaskId + '/' + fileType, {
                     method: 'POST',
                     body: formData
-                });
+                }, 3, 2000);
                 const data = await response.json();
                 if (data.success) {
                     updateStartButton();
@@ -478,11 +512,11 @@
             document.getElementById('progressSection').classList.remove('hidden');
             document.getElementById('placeholderSection').classList.add('hidden');
             try {
-                const response = await fetch(API_BASE + '/tender/audit', {
+                const response = await fetchWithRetry(API_BASE + '/tender/audit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ task_id: currentTaskId, use_mock: useMock })
-                });
+                }, 3, 1000);
                 const data = await response.json();
                 if (data.success) {
                     pollInterval = setInterval(pollStatus, 1000);
@@ -536,7 +570,7 @@
 
         async function loadReport() {
             try {
-                const response = await fetch(API_BASE + '/tender/report/' + currentTaskId);
+                const response = await fetchWithRetry(API_BASE + '/tender/report/' + currentTaskId, {}, 3, 1000);
                 const data = await response.json();
                 if (data.success) {
                     document.getElementById('progressSection').classList.add('hidden');
