@@ -70,19 +70,39 @@ class Stage2Aligner:
         Returns:
             Tuple[TenderChecklist, BidResponse]: 招标书Checklist和投标书响应
         """
-        logger.info("[Stage 2] 开始条款对齐...")
+        import time
+        start_time = time.time()
+
+        logger.info(f"[Stage 2] 开始条款对齐")
+        logger.info(f"  招标书ID: {tender_doc.tender_id}")
+        logger.info(f"  投标书ID: {bid_doc.bid_id}")
 
         # 1. 解析招标书为Checklist
-        logger.info("  解析招标书Checklist...")
+        logger.info(f"  [1/2] 解析招标书Checklist...")
+        checklist_start = time.time()
         checklist = self._parse_tender_checklist(tender_doc)
-        logger.info(f"    提取 {len(checklist.items)} 条条款")
+        checklist_elapsed = time.time() - checklist_start
+
+        logger.info(f"    提取 {len(checklist.items)} 条条款, 耗时{checklist_elapsed:.2f}秒")
+        if checklist.sections:
+            logger.debug(f"    识别 {len(checklist.sections)} 个章节")
+        if checklist.statistics:
+            logger.info(f"    统计: {checklist.statistics}")
 
         # 2. 解析投标书为响应提取
-        logger.info("  解析投标书响应...")
+        logger.info(f"  [2/2] 解析投标书响应...")
+        bid_start = time.time()
         bid_response = self._parse_bid_response(bid_doc, checklist)
-        logger.info(f"    提取 {len(bid_response.equipment_tables)} 个设备表")
+        bid_elapsed = time.time() - bid_start
 
-        logger.info("[Stage 2] 条款对齐完成")
+        logger.info(f"    提取 {len(bid_response.equipment_tables)} 个设备表, 耗时{bid_elapsed:.2f}秒")
+        logger.info(f"    提取 {len(bid_response.deviation_table)} 条偏离记录")
+        logger.info(f"    提取 {len(bid_response.technical_proposal)} 个技术方案章节")
+        logger.info(f"    提取 {len(bid_response.qualification_docs)} 个资质文件引用")
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[Stage 2] 条款对齐完成, 总耗时{total_elapsed:.2f}秒")
+
         return checklist, bid_response
 
     def _parse_tender_checklist(self, tender_doc: TenderDocument) -> TenderChecklist:

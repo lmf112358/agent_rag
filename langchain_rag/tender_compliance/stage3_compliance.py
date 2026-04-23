@@ -609,14 +609,25 @@ class Stage3Compliance:
         Returns:
             ComplianceResult: 核对结果
         """
-        logger.info(f"[Stage 3] 执行三层核对: {len(checklist.items)}条条款")
+        import time
+        start_time = time.time()
+
+        logger.info(f"[Stage 3] 开始三层核对")
+        logger.info(f"  条款总数: {len(checklist.items)}条")
+        logger.info(f"  设备表数: {len(bid_response.equipment_tables)}个")
+        logger.info(f"  KB Verify: {'启用' if self.kb_engine else '禁用'}")
 
         checks = []
         hard_count = 0
         soft_count = 0
         kb_count = 0
+        hard_passed = 0
+        hard_failed = 0
 
-        for item in checklist.items:
+        for idx, item in enumerate(checklist.items):
+            if idx % 10 == 0:
+                logger.debug(f"  处理进度: {idx}/{len(checklist.items)} ({idx/len(checklist.items)*100:.0f}%)")
+
             check = ComplianceCheck(
                 item_id=item.item_id,
                 check_type=self._determine_check_type(item),
@@ -624,33 +635,69 @@ class Stage3Compliance:
 
             # Hard Check: 量化指标
             if item.quantifiable and item.metric:
+                logger.debug(f"    [Hard] {item.item_id}: {item.type} - {item.metric.parameter} {item.metric.operator} {item.metric.target_value}")
                 hard_result = self.hard_engine.check(item, bid_response.dict())
                 check.hard_result = hard_result
                 check.final_status = hard_result.status
                 check.final_risk_level = hard_result.risk_level
                 hard_count += 1
 
+                if hard_result.status == "符合":
+                    hard_passed += 1
+                    logger.debug(f"      ✓ 通过: 投标值{hard_result.bid_value} {hard_result.operator} 目标值{hard_result.target_value}")
+                elif hard_result.status == "不符合":
+                    hard_failed += 1
+                    logger.warning(f"      ✗ 不通过: 投标值{hard_result.bid_value} {hard_result.operator} 目标值{hard_result.target_value} (风险:{hard_result.risk_level})")
+                else:
+                    logger.debug(f"      ? 待确认: {hard_result.status}")
+
             # Soft Check: 定性评估
             elif item.type == "评分项":
+                logger.debug(f"    [Soft] {item.item_id}: {item.type} - {item.content[:50]}...")
                 soft_result = self.soft_engine.check(item, bid_response.dict())
                 check.soft_result = soft_result
                 check.final_status = "待评估" if check.final_status is None else check.final_status
                 soft_count += 1
 
+                if soft_result.response_quality in ["优", "良"]:
+                    logger.debug(f"      响应质量: {soft_result.response_quality}, 建议分: {soft_result.suggested_score}/{soft_result.max_score}")
+                else:
+                    logger.warning(f"      响应质量: {soft_result.response_quality}, 置信度: {soft_result.confidence:.2f}")
+
             # KB Verify: 知识库校验（可选）
             if self.kb_engine and item.quantifiable:
+                logger.debug(f"    [KB] {item.item_id}: 验证{item.metric.parameter}")
                 kb_result = self.kb_engine.verify(item, bid_response.dict())
                 check.kb_result = kb_result
                 kb_count += 1
 
+                if kb_result.model_found:
+                    if kb_result.deviation_percent:
+                        if kb_result.deviation_percent > 10:
+                            logger.warning(f"      ⚠ 参数偏离: {kb_result.deviation_percent:.1f}% (厂家:{kb_result.kb_value}, 投标:{kb_result.bid_value})")
+                        else:
+                            logger.debug(f"      ✓ 知识库验证通过: 偏离{kb_result.deviation_percent:.1f}%")
+                    else:
+                        logger.debug(f"      ✓ 知识库验证通过")
+                else:
+                    logger.debug(f"      知识库未找到该型号")
+
             checks.append(check)
 
-        logger.info(f"  Hard Check: {hard_count}项")
+        logger.info(f"  Hard Check: {hard_count}项 (通过:{hard_passed}, 不通过:{hard_failed})")
         logger.info(f"  Soft Check: {soft_count}项")
         logger.info(f"  KB Verify: {kb_count}项")
 
         # 生成汇总统计
         summary = self._generate_summary(checks)
+
+        compliance_rate = summary.get("compliance_rate", 0)
+        logger.info(f"  合规率: {compliance_rate:.1f}%")
+        logger.info(f"  高风险项: {summary.get('risk_summary', {}).get('high_risk', 0)}项")
+        logger.info(f"  中风险项: {summary.get('risk_summary', {}).get('medium_risk', 0)}项")
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[Stage 3] 核对完成, 总耗时{total_elapsed:.2f}秒")
 
         return ComplianceResult(
             tender_id=checklist.tender_id,

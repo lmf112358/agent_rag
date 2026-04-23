@@ -49,14 +49,21 @@ class Stage4Scoring:
         Returns:
             ScoringCard: 评分卡
         """
-        logger.info("[Stage 4] 执行评分汇总...")
+        import time
+        start_time = time.time()
+
+        logger.info(f"[Stage 4] 开始评分汇总")
+        logger.info(f"  核对项数: {len(compliance_result.checks)}条")
+        logger.info(f"  评分维度: {len(self.dimensions_config)}个")
 
         dimensions = []
         total_score = 0.0
         max_total_score = 0.0
 
         # 按维度评分
+        logger.info(f"  计算各维度得分...")
         for dim_name, dim_config in self.dimensions_config.items():
+            logger.debug(f"    维度: {dim_name} (权重:{dim_config.get('weight', 0):.0%})")
             dim_score = self._score_dimension(
                 dim_name=dim_name,
                 dim_config=dim_config,
@@ -65,21 +72,41 @@ class Stage4Scoring:
             )
             dimensions.append(dim_score)
 
+            logger.info(f"      {dim_name}: {dim_score.actual_score:.2f}/{dim_score.max_score:.2f} "
+                       f"({dim_score.passed_count}/{dim_score.item_count}通过)")
+
             total_score += dim_score.actual_score
             max_total_score += dim_score.max_score
 
         # 废标风险检测
+        logger.info(f"  检测废标风险...")
         disqualification_risk, disqualification_reasons = self._check_disqualification(
             compliance_result
         )
+
+        if disqualification_risk:
+            logger.warning(f"    ⚠ 检测到废标风险:")
+            for reason in disqualification_reasons:
+                logger.warning(f"      - {reason}")
+        else:
+            logger.info(f"    ✓ 无废标风险")
 
         # 风险汇总
         risk_summary = self._summarize_risks(compliance_result)
 
         score_percent = (total_score / max_total_score * 100) if max_total_score > 0 else 0
 
-        logger.info(f"  总得分: {total_score:.2f}/{max_total_score:.2f} ({score_percent:.1f}%)")
+        logger.info(f"")
+        logger.info(f"  {'='*50}")
+        logger.info(f"  总得分: {total_score:.2f}/{max_total_score:.2f}")
+        logger.info(f"  得分率: {score_percent:.1f}%")
         logger.info(f"  废标风险: {'有' if disqualification_risk else '无'}")
+        logger.info(f"  高风险项: {risk_summary.get('high_risk_count', 0)}个")
+        logger.info(f"  中风险项: {risk_summary.get('medium_risk_count', 0)}个")
+        logger.info(f"  {'='*50}")
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[Stage 4] 评分完成, 耗时{total_elapsed:.2f}秒")
 
         return ScoringCard(
             tender_id=checklist.tender_id,

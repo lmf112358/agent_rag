@@ -70,23 +70,49 @@ class Stage5Review:
         Returns:
             ReviewReport: 完整审核报告
         """
-        logger.info("[Stage 5] 生成审核报告...")
+        import time
+        start_time = time.time()
+
+        logger.info(f"[Stage 5] 开始生成审核报告")
+        logger.info(f"  项目名称: {tender_doc.project_name}")
+        logger.info(f"  投标公司: {bid_doc.company_name}")
 
         # 1. 生成每个条款的复核决策
+        logger.info(f"  [1/2] 生成复核决策...")
         review_decisions = self._generate_review_decisions(
             compliance_result, scoring_card
         )
 
+        auto_pass = sum(1 for d in review_decisions if d.auto_decision == "自动通过")
+        need_confirm = sum(1 for d in review_decisions if d.auto_decision == "需人工确认")
+        force_review = sum(1 for d in review_decisions if d.auto_decision == "强制人工审核")
+
+        logger.info(f"    自动通过: {auto_pass}项")
+        logger.info(f"    需人工确认: {need_confirm}项")
+        logger.info(f"    强制人工审核: {force_review}项")
+        if review_decisions:
+            auto_rate = auto_pass / len(review_decisions) * 100
+            logger.info(f"    自动通过率: {auto_rate:.1f}%")
+
         # 2. 生成最终报告
+        logger.info(f"  [2/2] 生成最终报告...")
         final_report = self._generate_final_report(
             tender_doc, bid_doc, checklist, bid_response,
             compliance_result, scoring_card, review_decisions
         )
 
         report_id = f"REPORT_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        recommendation = final_report.get("overall_recommendation", "")
 
-        logger.info(f"  复核项数: {len(review_decisions)}")
+        logger.info(f"")
+        logger.info(f"  {'='*60}")
         logger.info(f"  报告ID: {report_id}")
+        logger.info(f"  复核项数: {len(review_decisions)}项")
+        logger.info(f"  整体建议: {recommendation}")
+        logger.info(f"  {'='*60}")
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[Stage 5] 报告生成完成, 耗时{total_elapsed:.2f}秒")
 
         return ReviewReport(
             report_id=report_id,

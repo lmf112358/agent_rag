@@ -75,9 +75,25 @@ class Stage1Parser:
         Returns:
             Tuple[TenderDocument, BidDocument]: 解析后的招标书和投标书对象
         """
+        import time
+        start_time = time.time()
+
+        logger.info(f"[Stage 1] 开始解析文档")
+        logger.info(f"  招标书: {tender_pdf}")
+        logger.info(f"  投标书: {bid_pdf}")
+
         # 解析招标书
-        logger.info(f"解析招标书: {tender_pdf}")
+        logger.info(f"  解析招标书...")
+        tender_start = time.time()
         tender_parse_result = self._parse_single_pdf(tender_pdf)
+        tender_elapsed = time.time() - tender_start
+
+        if tender_parse_result.success:
+            logger.info(f"    招标书解析成功: {tender_parse_result.page_count}页, 耗时{tender_elapsed:.2f}秒")
+            if tender_parse_result.quality_report:
+                logger.debug(f"    质量报告: {tender_parse_result.quality_report}")
+        else:
+            logger.warning(f"    招标书解析失败: {tender_parse_result.error}")
 
         tender_doc = TenderDocument(
             tender_id=tender_id,
@@ -89,8 +105,17 @@ class Stage1Parser:
         )
 
         # 解析投标书
-        logger.info(f"解析投标书: {bid_pdf}")
+        logger.info(f"  解析投标书...")
+        bid_start = time.time()
         bid_parse_result = self._parse_single_pdf(bid_pdf)
+        bid_elapsed = time.time() - bid_start
+
+        if bid_parse_result.success:
+            logger.info(f"    投标书解析成功: {bid_parse_result.page_count}页, 耗时{bid_elapsed:.2f}秒")
+            if bid_parse_result.quality_report:
+                logger.debug(f"    质量报告: {bid_parse_result.quality_report}")
+        else:
+            logger.warning(f"    投标书解析失败: {bid_parse_result.error}")
 
         bid_doc = BidDocument(
             bid_id=bid_id,
@@ -100,6 +125,9 @@ class Stage1Parser:
             parse_result=bid_parse_result,
             markdown=bid_parse_result.markdown if bid_parse_result.success else None,
         )
+
+        total_elapsed = time.time() - start_time
+        logger.info(f"[Stage 1] 文档解析完成, 总耗时{total_elapsed:.2f}秒")
 
         return tender_doc, bid_doc
 
@@ -114,15 +142,28 @@ class Stage1Parser:
             DocumentParseResult: 解析结果
         """
         import time
+        from pathlib import Path
 
         start_time = time.time()
 
+        # 检查文件是否存在
+        if not Path(pdf_path).exists():
+            logger.error(f"文件不存在: {pdf_path}")
+            return DocumentParseResult(
+                success=False,
+                error=f"文件不存在: {pdf_path}",
+                parse_time_seconds=time.time() - start_time,
+            )
+
         # 1. 质量检测
-        logger.debug(f"质量检测: {pdf_path}")
+        logger.debug(f"  [1/2] 执行质量检测: {Path(pdf_path).name}")
         quality_report = self.quality_checker.check(pdf_path)
+        logger.debug(f"    质量评分: {quality_report.quality_score}, 标签: {quality_report.quality_tag}")
+        if quality_report.issues:
+            logger.debug(f"    质量问题: {quality_report.issues}")
 
         if quality_report.quality_score == 0.0:
-            # 严重质量问题，无法解析
+            logger.warning(f"    质量不合格，跳过解析")
             return DocumentParseResult(
                 success=False,
                 error=f"文档质量不合格: {', '.join(quality_report.issues)}",
@@ -130,16 +171,23 @@ class Stage1Parser:
             )
 
         # 2. MinerU解析
-        logger.debug(f"MinerU解析: {pdf_path}")
+        logger.debug(f"  [2/2] 调用MinerU解析: {Path(pdf_path).name}")
+        mineru_start = time.time()
         try:
             mineru_result = self.mineru_client.parse_pdf(pdf_path)
+            mineru_elapsed = time.time() - mineru_start
 
             if not mineru_result.success:
+                logger.warning(f"    MinerU解析失败: {mineru_result.error}")
                 return DocumentParseResult(
                     success=False,
                     error=f"MinerU解析失败: {mineru_result.error}",
                     parse_time_seconds=time.time() - start_time,
                 )
+
+            logger.debug(f"    MinerU解析完成: {mineru_result.page_count}页, 耗时{mineru_elapsed:.2f}秒")
+            if mineru_result.markdown:
+                logger.debug(f"    Markdown长度: {len(mineru_result.markdown)}字符")
 
             return DocumentParseResult(
                 success=True,
@@ -155,7 +203,7 @@ class Stage1Parser:
             )
 
         except Exception as e:
-            logger.exception(f"解析异常: {pdf_path}")
+            logger.exception(f"    解析异常: {str(e)}")
             return DocumentParseResult(
                 success=False,
                 error=f"解析异常: {str(e)}",

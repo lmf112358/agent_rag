@@ -237,14 +237,14 @@ AGENT_CONFIDENCE_THRESHOLD=0.75
 AGENT_FALLBACK_TO_HUMAN=true
 
 # ==========================================
-# MinerU 文档解析配置（Phase 2）
+# MinerU 文档解析配置（标书审核必需）
 # ==========================================
 # 是否启用 MinerU（启用后 PDF 优先用 MinerU 解析）
-MINERU_ENABLED=false
-# MinerU API 服务地址
-MINERU_API_BASE=http://localhost:8008
-# API Key（如需要）
-MINERU_API_KEY=
+MINERU_ENABLED=true
+# MinerU API 服务地址（官方云端）
+MINERU_API_BASE=https://mineru.net
+# API Key（从 https://mineru.net 获取）
+MINERU_API_KEY=your_mineru_api_key_here
 # 请求超时时间（秒）
 MINERU_TIMEOUT=300
 # 输出格式：markdown / json
@@ -255,6 +255,11 @@ MINERU_ENABLE_OCR=false
 MINERU_ENABLE_FORMULA=true
 # 是否启用表格识别
 MINERU_ENABLE_TABLE=true
+
+# 云端API扩展配置
+MINERU_MODEL_VERSION=vlm          # pipeline / vlm / MinerU-HTML
+MINERU_POLL_INTERVAL=5            # 轮询间隔（秒）
+MINERU_MAX_POLLS=60              # 最大轮询次数
 ```
 
 ### 4. 启动 Qdrant（如使用本地版本）
@@ -409,10 +414,10 @@ start.bat
 
 ```bash
 # 模拟模式（无需PDF文件，查看Pipeline流程）
-python examples/tender_compliance_demo.py
+python langchain_rag/examples/tender_compliance_demo.py
 
 # 真实模式（使用真实PDF文件运行）
-python examples/tender_compliance_demo.py --with-files
+python langchain_rag/examples/tender_compliance_demo.py --with-files
 ```
 
 #### 方式2：编程方式使用
@@ -523,7 +528,7 @@ langchain_rag/tender_compliance/
 ├── stage4_scoring.py        # Stage 4: 评分汇总层
 └── stage5_review.py         # Stage 5: 人工复核层
 
-examples/
+langchain_rag/examples/
 └── tender_compliance_demo.py # 完整演示脚本
 ```
 
@@ -1405,10 +1410,13 @@ agent_rag/
 │   ├── document/               # 文档加载与处理
 │   │   ├── processor.py       # 多格式加载 + 中文优化分块
 │   │   ├── quality_checker.py # 文档质量检测
-│   │   ├── mineru_client.py   # ✨ MinerU API 客户端（Phase 2）
-│   │   └── mineru_loader.py   # ✨ MinerU 文档加载器（Phase 2）
-│   ├── examples/               # 使用示例
-│   │   └── quickstart.py      # 完整示例
+│   │   ├── mineru_client.py   # MinerU API 客户端
+│   │   └── mineru_loader.py   # MinerU 文档加载器
+│   ├── examples/               # 使用示例（统一位置）
+│   │   ├── __init__.py
+│   │   ├── quickstart.py      # 完整示例
+│   │   ├── tender_compliance_demo.py # 标书审核演示
+│   │   └── tender_quickstart.py
 │   ├── llm/                    # LLM 集成
 │   │   └── qwen.py            # ChatQwen + Function Calling
 │   ├── rag/                    # 检索链
@@ -1417,6 +1425,16 @@ agent_rag/
 │   │   └── agent_tools.py     # KnowledgeRetrieval / QuoteValidation / ComplianceCheck
 │   ├── vectorstore/            # 向量存储
 │   │   └── qdrant.py          # QdrantVectorStore + DashScopeEmbeddings
+│   ├── tender_compliance/      # 标书审核 5 阶段 Pipeline
+│   │   ├── __init__.py
+│   │   ├── models.py          # Pydantic 数据模型
+│   │   ├── config.py          # 配置与规则
+│   │   ├── pipeline.py        # 主 Pipeline
+│   │   ├── stage1_parser.py   # 文档解析
+│   │   ├── stage2_aligner.py  # 条款对齐
+│   │   ├── stage3_compliance.py # 核对引擎
+│   │   ├── stage4_scoring.py  # 评分汇总
+│   │   └── stage5_review.py   # 人工复核
 │   ├── tests/                  # 单元测试
 │   │   ├── conftest.py
 │   │   ├── test_qwen.py
@@ -1440,12 +1458,18 @@ agent_rag/
 │   ├── 技术规范/
 │   ├── 操作手册/
 │   └── 报价模板/
-├── docs/                        # 文档
-│   └── superpowers/
-│       └── plans/
-├── doc/                         # 技术文档
+├── docs/                        # 完整技术文档体系
+│   ├── 00-项目概览/
+│   ├── 01-架构设计/
+│   ├── 02-核心技术路径/
+│   ├── 03-模块详解/
+│   ├── 04-开发指南/
+│   ├── 05-部署运维/
+│   ├── 06-用户指南/
+│   └── 项目文档体系规划.md
+├── doc/                         # 技术讨论文档
 │   └── 文档预处理技术路线讨论.md
-├── ingest_docs.py               # ✨ 文档灌库脚本（递归 + 文件夹元数据）
+├── ingest_docs.py               # 文档灌库脚本（递归 + 文件夹元数据）
 ├── start.py                     # 一键启动脚本
 ├── start.sh                     # Linux/macOS 启动
 ├── start.bat                    # Windows 启动
@@ -1453,8 +1477,9 @@ agent_rag/
 ├── requirements.txt             # 全量依赖
 ├── langchain_rag/requirements.txt
 ├── backend/requirements.txt
-├── check_config.py              # 配置检查工具
-├── test_imports.py              # 导入测试
+├── check_config.py              # 配置检查工具（保留）
+├── test_imports.py              # 导入测试（保留）
+├── TENDER_COMPLIANCE_USAGE.md   # 标书审核使用指南
 ├── CLAUDE.md                    # Claude Code 协作规范
 ├── 技术方案书v1.0.md            # 原始技术方案
 ├── .gitignore

@@ -20,11 +20,22 @@
 - 核心 RAG 模块：`langchain_rag/`
 - 后端 API：`backend/`
 - 启动脚本：`start.py`、`start.sh`、`start.bat`
+- 示例代码：`langchain_rag/examples/`（统一位置）
+- 完整技术文档：`docs/`
 - 关键实现：
   - Qwen LLM：`langchain_rag/llm/qwen.py`
   - Qdrant 向量库：`langchain_rag/vectorstore/qdrant.py`
   - 检索链：`langchain_rag/rag/retrieval.py`
   - 后端服务：`backend/services/`
+  - 标书审核 Pipeline：`langchain_rag/tender_compliance/`
+
+## 保留的工具文件
+
+以下工具文件保留在根目录（不列入临时文件排除范围）：
+- `check_config.py` - 配置检查工具
+- `test_imports.py` - 导入测试工具
+- `ingest_docs.py` - 文档灌库脚本
+- `start.py` / `start.sh` / `start.bat` - 启动脚本
 
 ## 环境与配置
 
