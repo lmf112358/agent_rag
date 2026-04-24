@@ -854,8 +854,13 @@
         const chatTop = document.getElementById('chatTop');
         const chatBottom = document.getElementById('chatBottom');
         let isResizing = false;
+        
+        const MIN_BOTTOM_HEIGHT = 80;
+        const MIN_TOP_HEIGHT = 100;
+        const RESIZE_HANDLE_HEIGHT = 8;
 
         resizeHandle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
             isResizing = true;
             resizeHandle.classList.add('active');
             document.body.style.cursor = 'row-resize';
@@ -865,55 +870,25 @@
         document.addEventListener('mousemove', function(e) {
             if (!isResizing) return;
             
-            if (!chatTop || !chatBottom || !resizeHandle) {
-                isResizing = false;
-                resizeHandle?.classList.remove('active');
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
-                return;
-            }
-            
             const container = chatTop.parentElement;
-            if (!container) return;
-            
             const containerRect = container.getBoundingClientRect();
-            if (containerRect.height <= 0) return;
             
-            const mouseY = e.clientY;
-            if (mouseY < containerRect.top || mouseY > containerRect.bottom) return;
+            const availableHeight = containerRect.height - RESIZE_HANDLE_HEIGHT;
+            const maxBottomHeight = availableHeight - MIN_TOP_HEIGHT;
             
-            const bottomHeight = containerRect.bottom - mouseY;
-            const minBottomHeight = 80;
-            const maxBottomHeight = containerRect.height * 0.6;
+            let bottomHeight = containerRect.bottom - e.clientY;
             
-            if (bottomHeight >= minBottomHeight && bottomHeight <= maxBottomHeight) {
-                chatBottom.style.height = bottomHeight + 'px';
-            }
+            bottomHeight = Math.max(MIN_BOTTOM_HEIGHT, Math.min(bottomHeight, maxBottomHeight));
+            
+            chatBottom.style.height = bottomHeight + 'px';
         });
 
         document.addEventListener('mouseup', function() {
             if (isResizing) {
                 isResizing = false;
-                resizeHandle?.classList.remove('active');
+                resizeHandle.classList.remove('active');
                 document.body.style.cursor = '';
                 document.body.style.userSelect = '';
-            }
-        });
-
-        window.addEventListener('resize', function() {
-            if (!chatTop || !chatBottom || !resizeHandle) return;
-            
-            const container = chatTop.parentElement;
-            if (!container) return;
-            
-            const containerRect = container.getBoundingClientRect();
-            if (containerRect.height <= 0) return;
-            
-            const currentBottomHeight = parseFloat(chatBottom.style.height || '120');
-            const maxBottomHeight = containerRect.height * 0.6;
-            
-            if (currentBottomHeight > maxBottomHeight) {
-                chatBottom.style.height = maxBottomHeight + 'px';
             }
         });
 
