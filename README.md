@@ -22,15 +22,15 @@
 
 ### 项目背景
 
-Agentic RAG 是**广东迪奥技术有限公司**为国家级专精特新"小巨人"企业打造的 AI 总工程师工具体系，聚焦 PCB 厂务 / HVAC（中央空调）领域的知识管理、投标报价复核和技术合规审核。
+Agentic RAG 是为专精特新企业打造的 AI 总工程师工具体系，聚焦工业厂务 / HVAC（中央空调）领域的知识管理、投标报价复核和技术合规审核。
 
-**解决的核心痛点**：
-- **知识沉淀困境**：20 年 PCB 厂务经验分散在个人电脑与纸质档案中，新人培养周期长
+**解决的核心痛点：**
+- **知识沉淀困境**：20 年厂务经验分散在个人电脑与纸质档案中，新人培养周期长
 - **投标响应瓶颈**：单个智慧低碳项目招标书平均 200 页，技术合规审核耗时 3-5 天
 - **报价精准度风险**：中央空调系统涉及 200+ 分项报价，曾出现漏算亏损案例
 - **数据安全红线**：厂务数据涉及客户产线机密，传统 SaaS AI 工具无法通过安全审计
 
-**建设目标**：1 个月内完成空调领域最小可行 Demo（MVP），实现知识复用率提升 50%、投标审核效率提升 50%、报价复核准确率 100%。
+**建设目标**：实现知识复用率提升 50%、投标审核效率提升 50%、报价复核准确率 100%。
 
 ### 核心功能
 
@@ -58,9 +58,9 @@ Agentic RAG 是**广东迪奥技术有限公司**为国家级专精特新"小巨
 ├─────────────────────────────────────────────────────────────────────┤
 │                    【业务引擎层】Agent Layer                           │
 │  ┌───────────────────────────────────────────────────────────────┐  │
-│  │           LangGraph 智能体状态机 (ReAct Pattern)               │  │
+│  │           LangGraph 智能体状态机（ReAct Pattern）               │  │
 │  │ 意图识别 → 工具路由 → 执行监控 → 质量评估 → [置信度检查]      │  │
-│  │                   ↓ 置信度<0.75或3次失败                       │  │
+│  │                    ↓ 置信度<0.75或3次失败                       │  │
 │  │              【人工Fallback节点】→ 审核队列 → 知识回流        │  │
 │  └───────────────────────────────────────────────────────────────┘  │
 ├──────────────┬──────────────────┬──────────────────┬───────────────┤
@@ -71,7 +71,7 @@ Agentic RAG 是**广东迪奥技术有限公司**为国家级专精特新"小巨
 │   Qdrant向量库 │ MinerU文档解析 │ 历史报价库 │ 知识库版本控制      │
 ├─────────────────────────────────────────────────────────────────────┤
 │                    【推理引擎层】Inference Engine                    │
-│   Qwen LLM (通义千问) │ DashScope Embeddings                        │
+│   Qwen LLM（通义千问） │ DashScope Embeddings                        │
 ├─────────────────────────────────────────────────────────────────────┤
 │                    【基础设施层】Infrastructure                        │
 │   Docker 容器化 │ 本地部署 │ 数据物理隔离 │ 备份策略              │
@@ -83,7 +83,7 @@ Agentic RAG 是**广东迪奥技术有限公司**为国家级专精特新"小巨
 #### 文档灌库流程
 
 ```
-文档上传 → MinerU/标准解析 → 质量检测 → 路径元数据提取 → 
+文档上传 → MinerU/标准解析 → 质量检测 → 路径元数据提取 →
 表格感知分块 → 向量化 → Qdrant 存储
 ```
 
@@ -104,10 +104,10 @@ RAGAS 实时评估 → 输出 + 置信度标签
 | 层级 | 技术 | 版本 | 选型理由 |
 |------|------|------|----------|
 | **后端框架** | FastAPI | >=0.104.0 | 高性能异步框架，自动生成 API 文档 |
-| **LLM** | 通义千问 (Qwen) | qwen3.6-plus / qwen-plus | 中文工业术语理解顶尖，商业许可友好 |
+| **LLM** | 通义千问（Qwen） | qwen3.6-plus / qwen-plus | 中文工业术语理解顶尖，商业许可友好 |
 | **Embedding** | 通义千问 | text-embedding-v3 | 1024 维，中文优化 |
 | **向量库** | Qdrant | >=1.7.0 | 亚秒级检索，支持 Payload 过滤，权限管控完善 |
-| **文档解析** | MinerU (主) + pypdf (备) | - | MinerU 完美处理合并单元格与嵌套表格，输出 Markdown |
+| **文档解析** | MinerU（主）+ pypdf（备） | - | MinerU 完美处理合并单元格与嵌套表格，输出 Markdown |
 | **Agent 框架** | LangChain + LangGraph | 1.0.8 / 1.0.10 | 支持复杂状态机与 Human-in-the-Loop，工具调用生态成熟 |
 | **文档解析** | pypdf / python-docx | - | PDF/DOCX 标准解析 |
 
@@ -136,7 +136,7 @@ RAGAS 实时评估 → 输出 + 置信度标签
 
 **系统要求：**
 - Python 3.8 - 3.11
-- 操作系统：Windows 10+ / macOS 10.15+ / Linux (Ubuntu 20.04+)
+- 操作系统：Windows 10+ / macOS 10.15+ / Linux（Ubuntu 20.04+）
 - 内存：建议 16GB+
 - 磁盘：至少 10GB 可用空间
 
@@ -167,7 +167,7 @@ python test_imports.py
 
 ### 3. 配置环境变量
 
-**关键说明**：配置文件优先使用 `langchain_rag/.env`（而非 `backend/.env`）。
+**关键说明：** 配置文件优先使用 `langchain_rag/.env`（而非 `backend/.env`）。
 
 #### 步骤 1：从示例创建配置
 
@@ -184,7 +184,7 @@ cp langchain_rag/.env.example langchain_rag/.env
 # 通义千问 API 配置（必填）
 # ==========================================
 # 获取地址：https://dashscope.console.aliyun.com/
-DASHSCOPE_API_KEY=sk-293f8466de904dda8784bb53bf08fde0
+DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
 # ==========================================
 # LLM 配置
@@ -207,10 +207,10 @@ EMBEDDING_DIMENSION=1024
 # Qdrant 向量库配置
 # ==========================================
 # Cloud 版本：完整 URL（推荐）
-QDRANT_HOST=https://d13507c3-27ff-41ce-9ae3-2a3fab84e199.eu-west-2-0.aws.cloud.qdrant.io
+QDRANT_HOST=https://your-qdrant-cloud-url.cloud.qdrant.io
 QDRANT_PORT=6334
-QDRANT_COLLECTION_NAME=lmf_v1
-QDRANT_API_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+QDRANT_COLLECTION_NAME=agent_rag_knowledge
+QDRANT_API_KEY=your_qdrant_api_key_here
 
 # 本地版本：
 # QDRANT_HOST=localhost
@@ -369,7 +369,7 @@ start.bat
 
 ### 什么是标书审核Agent
 
-标书审核Agent是一个5阶段Pipeline的自动化标书合规审核系统，专门针对PCB厂务高效机房项目投标场景，将原本需要3-5天的人工审核缩短到分钟级。
+标书审核Agent是一个5阶段Pipeline的自动化标书合规审核系统，专门针对工业厂务高效机房项目投标场景，将原本需要3-5天的人工审核缩短到分钟级。
 
 **解决的核心痛点：**
 - **审核效率低**：单个智慧低碳项目招标书平均200页，技术合规审核耗时3-5天
@@ -432,7 +432,7 @@ pipeline = TenderCompliancePipeline()
 report = pipeline.run(
     tender_pdf="data/samples/tender/tender_sample.pdf",
     bid_pdf="data/samples/bid/bid_sample.pdf",
-    project_name="珠海某PCB厂高效机房项目",
+    project_name="某高效机房项目",
     project_type="高效机房",
     company_name="投标公司名称"
 )
@@ -541,9 +541,9 @@ langchain_rag/examples/
 ### 更多帮助
 
 如需更多帮助，请查看：
-- 详细使用指南: `TENDER_COMPLIANCE_USAGE.md`
-- 演示脚本: `examples/tender_compliance_demo.py`
-- 数据模型: `langchain_rag/tender_compliance/models.py`
+- 详细使用指南：`TENDER_COMPLIANCE_USAGE.md`
+- 演示脚本：`examples/tender_compliance_demo.py`
+- 数据模型：`langchain_rag/tender_compliance/models.py`
 
 ---
 
@@ -771,7 +771,7 @@ ZIP文件包含：
 | 简单技术文档 | ✅ | ✅ | 都可以，PyPDF 更快 |
 | 带复杂表格的招标书 | ✅ 优先 | ⚠️ | MinerU 能正确处理合并单元格 |
 | 带公式的技术手册 | ✅ 优先 | ❌ | MinerU 能识别公式 |
-| 扫描件 PDF | ✅（需 OCR） | ❌ | 启用 OCR 后 MinerU 可处理 |
+| 扫描件 PDF | ✅（需OCR） | ❌ | 启用 OCR 后 MinerU 可处理 |
 | 简单文本 PDF | ⚠️ 可选 | ✅ 优先 | PyPDF 更快更稳定 |
 
 ---
@@ -1024,19 +1024,19 @@ data/{project_name}/{doc_type}/{equipment_category}/{brand}/{filename}
 
 **示例路径：**
 ```
-data/珠海深联高效机房资料20241024/EQP-设备技术资料/EQP-01 冷水机组/特灵---10-22/CCTV - CCTV-1650RT-6.45 - Product Report.pdf
+data/某高效机房项目资料/EQP-设备技术资料/EQP-01 冷水机组/特灵---10-22/设备型号 - Product Report.pdf
 ```
 
 **自动提取的元数据：**
 ```python
 {
-    "project_name": "珠海深联高效机房",
+    "project_name": "某高效机房项目",
     "doc_type": "设备技术资料",
     "equipment_category": "冷水机组",
     "brand": "特灵",
-    "model_spec": "CCTV-1650RT-6.45",
+    "model_spec": "设备型号",
     "file_type_tag": "Product Report",
-    "folder_path": "珠海深联高效机房资料20241024/EQP-设备技术资料/EQP-01 冷水机组/特灵---10-22"
+    "folder_path": "某高效机房项目资料/EQP-设备技术资料/EQP-01 冷水机组/特灵---10-22"
 }
 ```
 
@@ -1271,11 +1271,11 @@ Connection refused
 
 ```env
 # ❌ 错误
-QDRANT_HOST=d13507c3-27ff-41ce-9ae3-2a3fab84e199.eu-west-2-0.aws.cloud.qdrant.io
+QDRANT_HOST=your-cluster-id.region.cloud.qdrant.io
 QDRANT_PORT=6334
 
 # ✅ 正确
-QDRANT_HOST=https://d13507c3-27ff-41ce-9ae3-2a3fab84e199.eu-west-2-0.aws.cloud.qdrant.io
+QDRANT_HOST=https://your-cluster-id.region.cloud.qdrant.io
 QDRANT_PORT=6334
 ```
 
@@ -1388,7 +1388,7 @@ python check_config.py
 
 2. **数据隔离**
    - 生产环境使用本地部署
-   - 禁止数据公网传输
+   - 禁止敏感数据公网传输
    - 定期备份 Qdrant 数据
 
 3. **访问控制**
@@ -1496,8 +1496,6 @@ MIT License
 
 ## 联系方式与支持
 
-**项目维护**：广东迪奥技术有限公司 AI 总工程师团队
-
 **问题反馈**：
 - 提交 Issue
 - 查看 `ingest_docs.log` 日志
@@ -1505,4 +1503,4 @@ MIT License
 
 ---
 
-**注意**：本项目仅供内部使用，所有数据操作严格遵循公司信息安全管理制度，确保 proprietary 知识不流出企业边界。
+**注意**：本项目仅供内部使用，所有数据操作请遵循企业信息安全管理制度，确保专有知识不流出企业边界。
