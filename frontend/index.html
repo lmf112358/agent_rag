@@ -228,6 +228,10 @@
                     <i data-lucide="file-text" class="w-5 h-5"></i>
                     <span>Tender Audit</span>
                 </button>
+                <button id="navQuote" class="sidebar-item relative w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-500 text-sm" onclick="switchTab('quote')">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                    <span>Quote Audit</span>
+                </button>
                 
                 <div class="mt-8">
                     <p class="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2">System</p>
@@ -450,6 +454,90 @@
                     </div>
                 </div>
             </div>
+
+            <div id="quoteView" class="flex-1 flex flex-col overflow-hidden hidden">
+                <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h2 class="text-lg font-semibold text-gray-900">Quote Audit</h2>
+                            <p class="text-sm text-gray-500">Audit quote spreadsheets for compliance</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="flex-1 overflow-auto p-6">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
+                        <div class="space-y-4">
+                            <div class="card border border-gray-200 p-6">
+                                <h3 class="text-sm font-semibold text-gray-900 mb-4">Upload Quote File</h3>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Project Name</label>
+                                        <input type="text" id="quoteProjectName" placeholder="Enter project name"
+                                            class="input-field w-full px-3 py-2.5 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Total RT (Optional)</label>
+                                        <input type="number" id="quoteTotalRT" placeholder="e.g. 1650"
+                                            class="input-field w-full px-3 py-2.5 text-sm">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Building Area (Optional)</label>
+                                        <input type="number" id="quoteBuildingArea" placeholder="e.g. 5000"
+                                            class="input-field w-full px-3 py-2.5 text-sm">
+                                    </div>
+                                    <div id="quoteDropZone" class="drop-zone rounded-lg p-5 text-center cursor-pointer"
+                                        ondrop="handleQuoteDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('quoteFileInput').click()">
+                                        <i data-lucide="file-spreadsheet" class="w-8 h-8 mx-auto text-gray-300 mb-2"></i>
+                                        <p class="text-sm text-gray-600">Quote Spreadsheet</p>
+                                        <p class="text-xs text-gray-400 mt-1">Excel format (.xls, .xlsx)</p>
+                                        <input type="file" id="quoteFileInput" class="hidden" accept=".xls,.xlsx" onchange="handleQuoteFileSelect(event)">
+                                        <p id="quoteFileName" class="text-xs text-green-600 mt-2 hidden"></p>
+                                    </div>
+                                    <button id="startQuoteAuditBtn" onclick="startQuoteAudit()" disabled
+                                        class="btn-primary w-full py-2.5 rounded-lg text-sm font-medium">
+                                        Start Audit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div id="quoteResultSection" class="hidden card border border-gray-200 p-6">
+                                <div class="flex items-center justify-between mb-5">
+                                    <h3 class="text-sm font-semibold text-gray-900">Audit Result</h3>
+                                    <span id="quoteStatus" class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+                                </div>
+                                <div class="mb-5 p-4 bg-gray-50 rounded-lg space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Total Items</span>
+                                        <span id="quoteTotalItems" class="text-lg font-bold text-gray-900">0</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Pass Rate</span>
+                                        <span id="quotePassRate" class="text-lg font-bold text-gray-900">0%</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-sm text-gray-600">Issues</span>
+                                        <div class="flex space-x-2">
+                                            <span id="quoteFatalCount" class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">0 Fatal</span>
+                                            <span id="quoteMajorCount" class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">0 Major</span>
+                                            <span id="quoteWarningCount" class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">0 Warning</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div id="quoteReportContent" class="markdown-body h-96 overflow-y-auto scrollbar-hide text-sm text-gray-700"></div>
+                            </div>
+                            <div id="quotePlaceholderSection" class="card border border-gray-200 p-6">
+                                <div class="text-center text-gray-400 py-16">
+                                    <i data-lucide="file-spreadsheet" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
+                                    <p class="text-sm">Upload a quote file<br>results will appear here</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -502,27 +590,35 @@
         function switchTab(tab) {
             const chatView = document.getElementById('chatView');
             const tenderView = document.getElementById('tenderView');
+            const quoteView = document.getElementById('quoteView');
             const navChat = document.getElementById('navChat');
             const navTender = document.getElementById('navTender');
-            
+            const navQuote = document.getElementById('navQuote');
+
+            // Reset all nav items
+            [navChat, navTender, navQuote].forEach(nav => {
+                nav.classList.remove('active');
+                nav.classList.add('text-gray-500');
+                nav.classList.remove('text-gray-700');
+            });
+            // Hide all views
+            [chatView, tenderView, quoteView].forEach(view => view.classList.add('hidden'));
+
             if (tab === 'chat') {
                 chatView.classList.remove('hidden');
-                tenderView.classList.add('hidden');
                 navChat.classList.add('active');
                 navChat.classList.remove('text-gray-500');
                 navChat.classList.add('text-gray-700');
-                navTender.classList.remove('active');
-                navTender.classList.add('text-gray-500');
-                navTender.classList.remove('text-gray-700');
-            } else {
-                chatView.classList.add('hidden');
+            } else if (tab === 'tender') {
                 tenderView.classList.remove('hidden');
                 navTender.classList.add('active');
                 navTender.classList.remove('text-gray-500');
                 navTender.classList.add('text-gray-700');
-                navChat.classList.remove('active');
-                navChat.classList.add('text-gray-500');
-                navChat.classList.remove('text-gray-700');
+            } else if (tab === 'quote') {
+                quoteView.classList.remove('hidden');
+                navQuote.classList.add('active');
+                navQuote.classList.remove('text-gray-500');
+                navQuote.classList.add('text-gray-700');
             }
         }
 
@@ -848,6 +944,109 @@
 
         function downloadReport(format) {
             window.open(API_BASE + '/tender/download/' + currentTaskId + '?format=' + format, '_blank');
+        }
+
+        // Quote Audit Functions
+        let quoteFile = null;
+
+        function handleQuoteDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) processQuoteFile(files[0]);
+        }
+
+        function handleQuoteFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) processQuoteFile(files[0]);
+        }
+
+        async function processQuoteFile(file) {
+            if (!file.name.toLowerCase().endsWith('.xls') && !file.name.toLowerCase().endsWith('.xlsx')) {
+                alert('Please upload Excel file (.xls or .xlsx)');
+                return;
+            }
+            quoteFile = file;
+            document.getElementById('quoteFileName').textContent = '✓ ' + file.name;
+            document.getElementById('quoteFileName').classList.remove('hidden');
+            document.getElementById('startQuoteAuditBtn').disabled = false;
+        }
+
+        async function startQuoteAudit() {
+            if (!quoteFile) {
+                alert('Please select a quote file');
+                return;
+            }
+
+            const projectName = document.getElementById('quoteProjectName').value.trim();
+            if (!projectName) {
+                alert('Please enter project name');
+                return;
+            }
+
+            const totalRT = document.getElementById('quoteTotalRT').value;
+            const buildingArea = document.getElementById('quoteBuildingArea').value;
+
+            const formData = new FormData();
+            formData.append('file', quoteFile);
+            formData.append('project_name', projectName);
+            if (totalRT) formData.append('total_rt', parseFloat(totalRT));
+            if (buildingArea) formData.append('building_area', parseFloat(buildingArea));
+
+            document.getElementById('startQuoteAuditBtn').disabled = true;
+            document.getElementById('startQuoteAuditBtn').textContent = 'Auditing...';
+
+            try {
+                const response = await fetchWithRetry(API_BASE + '/quote/audit', {
+                    method: 'POST',
+                    body: formData
+                }, 3, 5000);
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showQuoteResult(data.data);
+                } else {
+                    alert('Audit failed: ' + (data.error || data.detail));
+                }
+            } catch (e) {
+                alert('Audit failed: ' + e.message);
+            } finally {
+                document.getElementById('startQuoteAuditBtn').disabled = false;
+                document.getElementById('startQuoteAuditBtn').textContent = 'Start Audit';
+            }
+        }
+
+        function showQuoteResult(report) {
+            document.getElementById('quotePlaceholderSection').classList.add('hidden');
+            document.getElementById('quoteResultSection').classList.remove('hidden');
+
+            // Update status badge
+            const statusEl = document.getElementById('quoteStatus');
+            statusEl.textContent = report.overall_status === 'pass' ? 'Pass' :
+                                   report.overall_status === 'conditional_pass' ? 'Conditional Pass' : 'Fail';
+            statusEl.className = 'px-2 py-1 rounded text-xs font-medium ' +
+                (report.overall_status === 'pass' ? 'bg-green-100 text-green-700' :
+                 report.overall_status === 'conditional_pass' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700');
+
+            // Update stats
+            document.getElementById('quoteTotalItems').textContent = report.total_items || 0;
+            document.getElementById('quotePassRate').textContent = report.pass_rate ? (parseFloat(report.pass_rate) * 100).toFixed(1) + '%' : '0%';
+            document.getElementById('quoteFatalCount').textContent = (report.fatal_count || 0) + ' Fatal';
+            document.getElementById('quoteMajorCount').textContent = (report.major_count || 0) + ' Major';
+            document.getElementById('quoteWarningCount').textContent = (report.warning_count || 0) + ' Warning';
+
+            // Render markdown content
+            if (report.markdown) {
+                document.getElementById('quoteReportContent').innerHTML = marked.parse(report.markdown);
+            } else if (report.issues && report.issues.length > 0) {
+                let html = '<h3>Issues Found</h3><ul>';
+                report.issues.slice(0, 50).forEach(issue => {
+                    html += '<li><strong>[' + issue.severity + ']</strong> ' + issue.message + '</li>';
+                });
+                html += '</ul>';
+                document.getElementById('quoteReportContent').innerHTML = html;
+            }
         }
 
         const resizeHandle = document.getElementById('resizeHandle');

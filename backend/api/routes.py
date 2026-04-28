@@ -2,7 +2,7 @@
 API路由模块
 """
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, BackgroundTasks, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -10,12 +10,16 @@ import io
 from backend.services.rag_service import RAGService
 from backend.services.memory_service import MemoryService
 from backend.services.agent_service import AgentService
+from backend.services.quote_service import QuoteAuditService
 from backend.services.tender_service import (
     get_tender_service,
     TaskStatus,
 )
 
 router = APIRouter()
+
+# 报价审核服务实例
+quote_service = QuoteAuditService()
 
 
 class QueryRequest(BaseModel):
@@ -300,3 +304,66 @@ async def tender_download(task_id: str, format: str = "json"):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ------------------------------
+# 报价审核相关API
+# ------------------------------
+
+class QuoteAuditRequest(BaseModel):
+    """报价审核请求"""
+    project_name: str = Field(..., description="项目名称")
+    total_rt: Optional[float] = Field(None, description="项目制冷量（RT）")
+    building_area: Optional[float] = Field(None, description="建筑面积（㎡）")
+
+
+@router.post("/quote/audit", summary="执行报价审核")
+async def quote_audit(
+    file: UploadFile = File(...),
+    project_name: str = Form(...),
+    total_rt: Optional[float] = Form(None),
+    building_area: Optional[float] = Form(None),
+):
+    """上传Excel并执行报价审核"""
+    import shutil
+    from pathlib import Path
+    
+    UPLOAD_DIR = Path("data/uploads")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        if not file.filename.endswith((".xlsx", ".xls")):
+            raise HTTPException(status_code=400, detail="仅支持Excel文件")
+        
+        # 保存上传文件
+        import uuid
+        file_id = str(uuid.uuid4())
+        file_path = UPLOAD_DIR / f"{file_id}_{file.filename}"
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 执行审核
+        result = quote_service.run_audit(
+            excel_path=str(file_path),
+            project_name=project_name,
+            total_rt=total_rt,
+            building_area=building_area,
+        )
+        
+        # 清理临时文件
+        if file_path.exists():
+            file_path.unlink()
+        
+        if not result["success"]:
+            raise HTTPException(status_code=500, detail=result["error"])
+        
+        return Response(
+            success=True,
+            data=result["report"],
+            message="审核完成"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"审核失败：{str(e)}")

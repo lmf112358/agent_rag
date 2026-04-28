@@ -35,6 +35,10 @@ requests>=2.31.0
 httpx>=0.25.2
 fastapi[all]
 
+# Excel Processing (报价审核)
+pandas>=2.0.0
+openpyxl>=3.1.0
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
