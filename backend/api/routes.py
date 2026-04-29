@@ -397,6 +397,66 @@ async def quote_audit(
 # 对话管理API端点
 # ==========================================
 
+@router.get("/quote/download/{report_id}", summary="下载报价审核报告")
+async def quote_download(report_id: str, format: str = "json"):
+    """下载报价审核报告，支持 json/md/html 格式"""
+    report = quote_service.get_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="报告不存在，请重新执行审核")
+    
+    project_name = report.get("project_name", "未命名")
+    safe_name = project_name.replace("/", "_").replace("\\", "_")
+    
+    if format == "json":
+        import json
+        content = json.dumps(report, ensure_ascii=False, indent=2).encode("utf-8")
+        filename = f"报价审核报告_{safe_name}.json"
+        media_type = "application/json; charset=utf-8"
+    elif format == "md":
+        content = (report.get("markdown") or "").encode("utf-8")
+        filename = f"报价审核报告_{safe_name}.md"
+        media_type = "text/markdown; charset=utf-8"
+    elif format == "html":
+        md_content = report.get("markdown") or ""
+        html_body = "<pre>" + md_content.replace("<", "&lt;") + "</pre>"
+        try:
+            import markdown
+            html_body = markdown.markdown(md_content, extensions=["tables", "fenced_code"])
+        except Exception:
+            pass
+        html = f"""<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>报价审核报告 - {project_name}</title>
+<style>
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 960px; margin: 0 auto; padding: 2rem; background: #0d1117; color: #f0f6fc; line-height: 1.7; }}
+h1, h2, h3 {{ color: #00d4ff; }}
+table {{ border-collapse: collapse; width: 100%; margin: 1em 0; }}
+th {{ background: rgba(255,255,255,0.06); text-align: left; padding: 8px 12px; }}
+td {{ padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }}
+code {{ background: rgba(0,212,255,0.1); padding: 2px 6px; border-radius: 4px; color: #00d4ff; }}
+pre {{ background: rgba(0,0,0,0.3); padding: 12px 16px; border-radius: 8px; overflow-x: auto; }}
+</style>
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
+        content = html.encode("utf-8")
+        filename = f"报价审核报告_{safe_name}.html"
+        media_type = "text/html; charset=utf-8"
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的格式: {format}，请使用 json/md/html")
+    
+    from urllib.parse import quote
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=media_type,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"}
+    )
+
 class ConversationCreateRequest(BaseModel):
     """创建对话请求"""
     title: Optional[str] = Field("新对话", description="对话标题")

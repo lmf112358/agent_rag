@@ -37,6 +37,8 @@ class QuoteAuditService:
         try:
             # 初始化审核Pipeline
             self.pipeline = QuoteAuditPipeline()
+            # 报告缓存 (report_id -> report_dict)
+            self._reports: Dict[str, Dict[str, Any]] = {}
             self._initialized = True
             print("[QuoteAuditService] 初始化完成")
         except Exception as e:
@@ -69,10 +71,13 @@ class QuoteAuditService:
             )
 
             # 转换为可序列化格式
+            report_dict = self._report_to_dict(report)
+            # 缓存报告供下载
+            self._reports[report_dict["report_id"]] = report_dict
             return {
                 "success": True,
                 "error": None,
-                "report": self._report_to_dict(report)
+                "report": report_dict
             }
         except Exception as e:
             print(f"[QuoteAuditService] 审核失败: {e}")
@@ -82,6 +87,10 @@ class QuoteAuditService:
                 "error": f"审核执行失败: {str(e)}",
                 "report": None
             }
+
+    def get_report(self, report_id: str) -> Optional[Dict[str, Any]]:
+        """获取缓存的报告"""
+        return self._reports.get(report_id)
 
     def _report_to_dict(self, report: QuoteAuditReport) -> Dict[str, Any]:
         """将报告模型转换为可序列化字典"""
