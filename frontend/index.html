@@ -3,300 +3,841 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agentic RAG</title>
+    <title>Agentic RAG | 智能工程知识管理系统</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=HarmonyOS+Sans+SC:wght@300;400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
     <style>
         :root {
-            --sidebar-width: 240px;
-            --accent-color: #0f172a;
-            --border-color: #e2e8f0;
-            --hover-bg: #f8fafc;
+            --byte-blue: #0F74FF;
+            --byte-cyan: #00D4FF;
+            --byte-teal: #00C4CC;
+            --byte-coral: #FF6B6B;
+            --byte-orange: #FF9F43;
+            --byte-dark: #0D1117;
+            --byte-darker: #010409;
+            --byte-card: rgba(255,255,255,0.06);
+            --byte-card-hover: rgba(255,255,255,0.1);
+            --byte-border: rgba(255,255,255,0.08);
+            --byte-gray: #8B949E;
+            --byte-light: #F0F6FC;
+            --byte-muted: #6E7681;
         }
-        
+
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'HarmonyOS Sans SC', 'Inter', sans-serif;
+            background: var(--byte-dark);
+            color: var(--byte-light);
+            min-height: 100vh;
+            overflow-x: hidden;
         }
-        
-        .sidebar-item {
-            transition: all 0.15s ease;
+
+        .font-display {
+            font-weight: 700;
         }
-        
-        .sidebar-item:hover {
-            background-color: var(--hover-bg);
+
+        .gradient-text {
+            background: linear-gradient(135deg, var(--byte-cyan) 0%, var(--byte-blue) 50%, var(--byte-coral) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        
-        .sidebar-item.active {
-            background-color: var(--hover-bg);
-            color: var(--accent-color);
+
+        .gradient-bg {
+            background: linear-gradient(135deg, var(--byte-blue) 0%, var(--byte-teal) 100%);
+        }
+
+        .gradient-coral {
+            background: linear-gradient(135deg, var(--byte-coral) 0%, var(--byte-orange) 100%);
+        }
+
+        /* 玻璃态卡片 */
+        .glass-card {
+            background: var(--byte-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--byte-border);
+            border-radius: 16px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            background: var(--byte-card-hover);
+            border-color: rgba(0, 212, 255, 0.2);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        /* 按钮样式 */
+        .btn-primary {
+            background: linear-gradient(135deg, var(--byte-blue) 0%, var(--byte-teal) 100%);
+            color: white;
+            font-weight: 500;
+            padding: 12px 24px;
+            border-radius: 12px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(15, 116, 255, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--byte-light);
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--byte-border);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-ghost:hover {
+            background: var(--byte-card);
+            border-color: var(--byte-cyan);
+        }
+
+        /* 输入框 */
+        .input-field {
+            background: var(--byte-card);
+            border: 1px solid var(--byte-border);
+            color: var(--byte-light);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .input-field:focus {
+            outline: none;
+            border-color: var(--byte-cyan);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+        }
+
+        .input-field::placeholder {
+            color: var(--byte-muted);
+        }
+
+        /* Select 下拉框样式 */
+        .input-field-select {
+            background: var(--byte-card);
+            border: 1px solid var(--byte-border);
+            color: var(--byte-light);
+            padding: 12px 40px 12px 16px;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            width: 100%;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238B949E' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        .input-field-select:focus {
+            outline: none;
+            border-color: var(--byte-cyan);
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+        }
+
+        .input-field-select option {
+            background: var(--byte-dark);
+            color: var(--byte-light);
+            padding: 12px;
+        }
+
+        /* 拖放区域 */
+        .drop-zone {
+            border: 2px dashed var(--byte-border);
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.drag-over {
+            border-color: var(--byte-cyan);
+            background: rgba(0, 212, 255, 0.05);
+        }
+
+        /* 状态徽章 */
+        .badge-success {
+            background: rgba(0, 212, 255, 0.15);
+            color: var(--byte-cyan);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
             font-weight: 500;
         }
-        
-        .sidebar-item.active::before {
-            content: '';
+
+        .badge-warning {
+            background: rgba(255, 159, 67, 0.15);
+            color: var(--byte-orange);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge-error {
+            background: rgba(255, 107, 107, 0.15);
+            color: var(--byte-coral);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* 动画 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 20px rgba(0, 212, 255, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(0, 212, 255, 0.6); }
+        }
+
+        @keyframes gradient-shift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        .animate-float {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out forwards;
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.4s ease-out forwards;
+        }
+
+        .animate-pulse-glow {
+            animation: pulse-glow 3s ease-in-out infinite;
+        }
+
+        .stagger-1 { animation-delay: 0.1s; opacity: 0; }
+        .stagger-2 { animation-delay: 0.2s; opacity: 0; }
+        .stagger-3 { animation-delay: 0.3s; opacity: 0; }
+        .stagger-4 { animation-delay: 0.4s; opacity: 0; }
+        .stagger-5 { animation-delay: 0.5s; opacity: 0; }
+
+        /* 背景装饰 */
+        .bg-orb {
             position: absolute;
-            left: 0;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.4;
+            pointer-events: none;
+        }
+
+        .bg-orb-1 {
+            width: 600px;
+            height: 600px;
+            background: var(--byte-blue);
+            top: -200px;
+            right: -100px;
+        }
+
+        .bg-orb-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--byte-cyan);
+            bottom: -100px;
+            left: -100px;
+        }
+
+        .bg-orb-3 {
+            width: 300px;
+            height: 300px;
+            background: var(--byte-coral);
             top: 50%;
-            transform: translateY(-50%);
-            width: 3px;
-            height: 24px;
-            background-color: var(--accent-color);
-            border-radius: 0 3px 3px 0;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.2;
         }
-        
-        .resizable-container {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
+
+        /* 网格背景 */
+        .grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
         }
-        
-        .resizable-top {
-            flex: 1;
-            min-height: 100px;
-            overflow: hidden;
-            position: relative;
-        }
-        
-        .resize-handle {
-            height: 8px;
-            cursor: row-resize;
+
+        /* 进度步骤 */
+        .progress-step {
             display: flex;
             align-items: center;
-            justify-content: center;
-            background-color: transparent;
-            transition: background-color 0.15s;
-            flex-shrink: 0;
+            gap: 16px;
+            padding: 16px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
         }
-        
-        .resize-handle:hover,
-        .resize-handle.active {
-            background-color: var(--hover-bg);
+
+        .progress-step.active {
+            background: rgba(0, 212, 255, 0.1);
         }
-        
-        .resize-handle-line {
-            width: 32px;
-            height: 3px;
-            background-color: #cbd5e1;
-            border-radius: 2px;
+
+        .progress-step.completed {
+            background: rgba(0, 212, 255, 0.15);
         }
-        
-        .resizable-bottom {
-            min-height: 60px;
-            flex-shrink: 0;
-            overflow: hidden;
+
+        .progress-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--byte-border);
+            transition: all 0.3s ease;
         }
-        
+
+        .progress-step.active .progress-dot {
+            background: var(--byte-cyan);
+            box-shadow: 0 0 12px var(--byte-cyan);
+        }
+
+        .progress-step.completed .progress-dot {
+            background: var(--byte-teal);
+        }
+
+        /* 滚动条 */
         .scrollbar-hide::-webkit-scrollbar {
             display: none;
         }
-        
+
         .scrollbar-hide {
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
-        
-        .markdown-body h1 {
-            font-size: 1.375rem;
-            font-weight: 600;
-            margin: 0.875rem 0 0.5rem;
-            color: #0f172a;
+
+        /* 自定义滚动条样式 */
+        .scrollbar-default::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
         }
-        
-        .markdown-body h2 {
-            font-size: 1.125rem;
-            font-weight: 600;
-            margin: 0.75rem 0 0.5rem;
-            color: #1e293b;
+
+        .scrollbar-default::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
         }
-        
+
+        .scrollbar-default::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+        }
+
+        .scrollbar-default::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .scrollbar-default {
+            -ms-overflow-style: auto;
+            scrollbar-width: thin;
+        }
+
+        /* Markdown 样式 */
+        .markdown-body h1,
+        .markdown-body h2,
         .markdown-body h3 {
-            font-size: 1rem;
+            color: var(--byte-cyan);
             font-weight: 600;
-            margin: 0.5rem 0 0.375rem;
-            color: #334155;
+            margin: 16px 0 8px;
         }
-        
+
         .markdown-body p {
-            margin-bottom: 0.5rem;
-            line-height: 1.6;
-            color: #475569;
+            color: var(--byte-light);
+            line-height: 1.8;
+            margin: 8px 0;
         }
-        
-        .markdown-body ul {
-            list-style-type: disc;
-            padding-left: 1.25rem;
-            margin-bottom: 0.5rem;
-            color: #475569;
-        }
-        
-        .markdown-body li {
-            margin-bottom: 0.125rem;
-        }
-        
-        .markdown-body strong {
-            font-weight: 600;
-            color: #0f172a;
-        }
-        
+
         .markdown-body code {
-            background-color: #f1f5f9;
-            padding: 0.125rem 0.375rem;
-            border-radius: 3px;
-            font-size: 0.875em;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            background: rgba(0, 212, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Inter', monospace;
+            font-size: 0.9em;
+            color: var(--byte-cyan);
         }
-        
-        .drop-zone {
-            border: 2px dashed #e2e8f0;
-            transition: all 0.2s ease;
+
+        /* 导航项 */
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 10px;
+            color: var(--byte-gray);
+            transition: all 0.3s ease;
+            cursor: pointer;
         }
-        
-        .drop-zone.drag-over {
-            border-color: #0f172a;
-            background: #f8fafc;
+
+        .nav-item:hover {
+            background: var(--byte-card);
+            color: var(--byte-light);
         }
-        
-        .btn-primary {
-            background-color: #0f172a;
-            color: white;
-            transition: all 0.15s ease;
+
+        .nav-item.active {
+            background: linear-gradient(135deg, rgba(15, 116, 255, 0.2) 0%, rgba(0, 196, 204, 0.2) 100%);
+            color: var(--byte-cyan);
         }
-        
-        .btn-primary:hover {
-            background-color: #1e293b;
+
+        /* 功能卡片 */
+        .feature-card {
+            position: relative;
+            overflow: hidden;
+            padding: 32px;
         }
-        
-        .btn-primary:disabled {
-            background-color: #cbd5e1;
-            cursor: not-allowed;
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--byte-blue), var(--byte-cyan));
+            opacity: 0;
+            transition: opacity 0.3s ease;
         }
-        
-        .card {
-            background: white;
-            border-radius: 0.75rem;
+
+        .feature-card:hover::before {
+            opacity: 1;
         }
-        
-        .input-field {
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            transition: all 0.15s ease;
+
+        .feature-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
         }
-        
-        .input-field:focus {
-            outline: none;
-            border-color: #0f172a;
-            box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.05);
+
+        /* 统计卡片 */
+        .stat-card {
+            padding: 24px;
+            border-radius: 14px;
+            background: var(--byte-card);
+            border: 1px solid var(--byte-border);
         }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+        /* 分隔线 */
+        .divider {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--byte-border), transparent);
         }
-        
-        .animate-pulse-subtle {
-            animation: pulse 1.5s ease-in-out infinite;
+
+        /* 覆盖层 */
+        .noise-overlay {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0.015;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        }
+
+        /* 隐藏/显示 */
+        .hidden-view {
+            display: none !important;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 280px;
+            height: 100vh;
+            background: var(--byte-darker);
+            border-right: 1px solid var(--byte-border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 调整大小手柄 */
+        .resize-handle {
+            height: 4px;
+            background: var(--byte-border);
+            cursor: row-resize;
+            transition: background 0.3s ease;
+        }
+
+        .resize-handle:hover,
+        .resize-handle.active {
+            background: var(--byte-cyan);
+        }
+
+        /* 标书审核结果区域调整手柄 */
+        .tender-resize-handle {
+            background: var(--byte-border);
+            transition: background 0.2s ease;
+        }
+
+        .tender-resize-handle:hover {
+            background: rgba(0, 212, 255, 0.2);
+        }
+
+        .tender-resize-handle.active {
+            background: var(--byte-cyan);
         }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <div class="flex h-screen overflow-hidden">
-        <aside class="w-[240px] bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
-            <div class="p-6 border-b border-gray-100">
-                <div class="flex items-center space-x-3">
-                    <div class="w-9 h-9 bg-slate-900 rounded-lg flex items-center justify-center">
-                        <i data-lucide="brain" class="text-white w-5 h-5"></i>
+<body>
+    <div class="noise-overlay"></div>
+
+    <!-- ==================== 落地页 (Landing View) ==================== -->
+    <div id="landingView" class="min-h-screen relative overflow-hidden">
+        <!-- 背景装饰 -->
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3 animate-float"></div>
+        <div class="grid-bg"></div>
+
+        <!-- 顶部导航 -->
+        <nav class="relative z-10 px-8 py-6">
+            <div class="max-w-7xl mx-auto flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
+                        <i data-lucide="brain" class="w-5 h-5 text-white"></i>
                     </div>
-                    <div>
-                        <h1 class="text-base font-semibold text-gray-900 tracking-tight">Agentic RAG</h1>
-                        <p class="text-xs text-gray-500">Industrial Knowledge</p>
+                    <span class="font-display text-xl">Agentic RAG</span>
+                </div>
+                <div class="flex items-center gap-6">
+                    <a href="#features" class="text-sm text-gray-400 hover:text-white transition-colors">功能特性</a>
+                    <a href="#tech" class="text-sm text-gray-400 hover:text-white transition-colors">技术栈</a>
+                    <button onclick="showAppView()" class="btn-primary text-sm">
+                        进入系统
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Hero 区域 -->
+        <section class="relative z-10 px-8 py-20">
+            <div class="max-w-7xl mx-auto text-center">
+                <div class="animate-fade-in-up">
+                    <span class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm mb-8">
+                        <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+                        基于大语言模型的工程知识管理系统
+                    </span>
+                </div>
+
+                <h1 class="font-display text-5xl md:text-6xl lg:text-7xl mb-6 animate-fade-in-up stagger-1">
+                    智能工程知识
+                    <span class="gradient-text">检索与审核</span>
+                </h1>
+
+                <p class="text-lg text-gray-400 max-w-2xl mx-auto mb-12 animate-fade-in-up stagger-2">
+                    融合 RAG 检索增强生成技术，提供智能对话、标书审核、报价审核等核心功能，
+                    助力工程行业数字化升级
+                </p>
+
+                <div class="flex items-center justify-center gap-4 animate-fade-in-up stagger-3">
+                    <button onclick="showAppView()" class="btn-primary text-base px-8 py-4">
+                        立即体验
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                    </button>
+                    <a href="#features" class="btn-ghost text-base px-6 py-4">
+                        了解更多
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- 功能卡片区域 -->
+        <section id="features" class="relative z-10 px-8 py-20">
+            <div class="max-w-7xl mx-auto">
+                <div class="text-center mb-16">
+                    <h2 class="font-display text-3xl md:text-4xl mb-4">核心功能</h2>
+                    <p class="text-gray-400">三大核心模块，覆盖工程知识管理全场景</p>
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-6">
+                    <!-- 智能对话 -->
+                    <div class="glass-card feature-card cursor-pointer" onclick="showAppView(); switchTab('chat')">
+                        <div class="feature-icon gradient-bg">
+                            <i data-lucide="message-circle" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <h3 class="font-display text-xl mb-3">智能对话</h3>
+                        <p class="text-gray-400 text-sm mb-4">基于向量检索的自然语言问答系统，支持多轮对话和上下文理解</p>
+                        <ul class="text-xs text-gray-500 space-y-2">
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-cyan-400"></i>
+                                RAG 检索增强生成
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-cyan-400"></i>
+                                多轮上下文记忆
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-cyan-400"></i>
+                                工程知识库支持
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 标书审核 -->
+                    <div class="glass-card feature-card cursor-pointer" onclick="showAppView(); switchTab('tender')">
+                        <div class="feature-icon gradient-coral">
+                            <i data-lucide="file-check" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <h3 class="font-display text-xl mb-3">标书审核</h3>
+                        <p class="text-gray-400 text-sm mb-4">基于 GB 标准的投标文件合规性审查，5 层深度审核Pipeline</p>
+                        <ul class="text-xs text-gray-500 space-y-2">
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-coral-400"></i>
+                                PDF 文档智能解析
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-coral-400"></i>
+                                合规性自动检查
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-coral-400"></i>
+                                风险评估报告
+                            </li>
+                        </ul>
+                    </div>
+
+                    <!-- 报价审核 -->
+                    <div class="glass-card feature-card cursor-pointer" onclick="showAppView(); switchTab('quote')">
+                        <div class="feature-icon" style="background: linear-gradient(135deg, #00C4CC 0%, #00D4FF 100%);">
+                            <i data-lucide="file-spreadsheet" class="w-6 h-6 text-white"></i>
+                        </div>
+                        <h3 class="font-display text-xl mb-3">报价审核</h3>
+                        <p class="text-gray-400 text-sm mb-4">工程量清单自动化审核，按 GB 50500 标准执行多维度检查</p>
+                        <ul class="text-xs text-gray-500 space-y-2">
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-teal-400"></i>
+                                Excel 一键上传
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-teal-400"></i>
+                                算术逻辑校验
+                            </li>
+                            <li class="flex items-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4 text-teal-400"></i>
+                                造价指标分析
+                            </li>
+                        </ul>
                     </div>
                 </div>
             </div>
-            
-            <nav class="flex-1 p-3">
-                <p class="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2">Navigation</p>
-                <button id="navChat" class="sidebar-item active relative w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-700 text-sm" onclick="switchTab('chat')">
-                    <i data-lucide="message-square" class="w-5 h-5"></i>
-                    <span>Chat</span>
-                </button>
-                <button id="navTender" class="sidebar-item relative w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-500 text-sm" onclick="switchTab('tender')">
-                    <i data-lucide="file-text" class="w-5 h-5"></i>
-                    <span>Tender Audit</span>
-                </button>
-                <button id="navQuote" class="sidebar-item relative w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-gray-500 text-sm" onclick="switchTab('quote')">
-                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
-                    <span>Quote Audit</span>
-                </button>
-                
-                <div class="mt-8">
-                    <p class="text-xs font-medium text-gray-400 uppercase tracking-wider px-3 mb-2">System</p>
-                    <div class="space-y-1">
-                        <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-500">
-                            <span class="flex items-center space-x-2">
-                                <span class="w-2 h-2 bg-green-500 rounded-full"></span>
-                                <span>API Status</span>
-                            </span>
-                            <span class="text-green-600">Online</span>
+        </section>
+
+        <!-- 技术特性 -->
+        <section id="tech" class="relative z-10 px-8 py-20 border-t border-white/5">
+            <div class="max-w-7xl mx-auto">
+                <div class="grid md:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <h2 class="font-display text-3xl mb-6">技术架构</h2>
+                        <p class="text-gray-400 mb-8">基于现代 AI 技术栈构建，提供高性能、高可用的工程知识管理能力</p>
+                        <div class="space-y-4">
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                                    <i data-lucide="database" class="w-5 h-5 text-blue-400"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-1">Qdrant 向量数据库</h4>
+                                    <p class="text-sm text-gray-500">高性能向量检索，支持百万级文档毫秒级查询</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
+                                    <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-1">通义千问 LLM</h4>
+                                    <p class="text-sm text-gray-500">阿里云大语言模型，提供强大的文本理解和生成能力</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center flex-shrink-0">
+                                    <i data-lucide="git-branch" class="w-5 h-5 text-purple-400"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium mb-1">LangGraph 工作流</h4>
+                                    <p class="text-sm text-gray-500">状态机驱动的复杂 Agent 编排，支持多阶段 Pipeline</p>
+                                </div>
+                            </div>
                         </div>
-                        <div class="flex items-center justify-between px-3 py-2 text-xs text-gray-500">
-                            <span>Messages</span>
-                            <span id="messageCount">1</span>
+                    </div>
+                    <div class="glass-card p-8">
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="text-center">
+                                <div class="font-display text-4xl gradient-text mb-2">5+</div>
+                                <p class="text-sm text-gray-400">核心 AI 模型</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-display text-4xl gradient-text mb-2">ms</div>
+                                <p class="text-sm text-gray-400">向量检索延迟</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-display text-4xl gradient-text mb-2">99.9%</div>
+                                <p class="text-sm text-gray-400">服务可用性</p>
+                            </div>
+                            <div class="text-center">
+                                <div class="font-display text-4xl gradient-text mb-2">∞</div>
+                                <p class="text-sm text-gray-400">知识库容量</p>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </nav>
-            
-            <div class="p-3 border-t border-gray-100">
-                <div class="flex items-center space-x-3 px-3 py-2 text-xs text-gray-400">
-                    <i data-lucide="wrench" class="w-4 h-4"></i>
-                    <span id="toolCount">0 tools loaded</span>
+            </div>
+        </section>
+
+        <!-- 底部 -->
+        <footer class="relative z-10 px-8 py-8 border-t border-white/5">
+            <div class="max-w-7xl mx-auto flex items-center justify-between text-sm text-gray-500">
+                <div class="flex items-center gap-2">
+                    <span>Built with</span>
+                    <span class="text-cyan-400">Qwen</span>
+                    <span>+</span>
+                    <span class="text-blue-400">LangGraph</span>
+                    <span>+</span>
+                    <span class="text-teal-400">Qdrant</span>
                 </div>
+                <div>Agentic RAG v1.0</div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ==================== 单页应用 (App View) ==================== -->
+    <div id="appView" class="hidden-view h-screen flex">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="p-6">
+                <div class="flex items-center gap-3 mb-2">
+                    <div class="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
+                        <i data-lucide="brain" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="font-display text-lg">Agentic RAG</h1>
+                        <p class="text-xs text-gray-500">智能工程知识管理</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="divider mx-6"></div>
+
+            <nav class="flex-1 px-4 py-6 space-y-2">
+                <p class="text-xs text-gray-500 uppercase tracking-wider px-4 mb-3">功能导航</p>
+
+                <button id="navChat" class="nav-item active w-full" onclick="switchTab('chat')">
+                    <i data-lucide="message-circle" class="w-5 h-5"></i>
+                    <span>智能对话</span>
+                </button>
+
+                <button id="navTender" class="nav-item w-full" onclick="switchTab('tender')">
+                    <i data-lucide="file-check" class="w-5 h-5"></i>
+                    <span>标书审核</span>
+                </button>
+
+                <button id="navQuote" class="nav-item w-full" onclick="switchTab('quote')">
+                    <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+                    <span>报价审核</span>
+                </button>
+            </nav>
+
+            <div class="p-6">
+                <div class="divider mb-6"></div>
+                <div class="flex items-center justify-between text-sm text-gray-500 mb-4">
+                    <span>API 状态</span>
+                    <span class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-green-400"></span>
+                        在线
+                    </span>
+                </div>
+                <button onclick="showLandingView()" class="btn-ghost w-full text-sm">
+                    <i data-lucide="home" class="w-4 h-4"></i>
+                    返回首页
+                </button>
             </div>
         </aside>
 
-        <main class="flex-1 overflow-hidden flex flex-col bg-gray-50">
+        <!-- 主内容区 -->
+        <main class="flex-1 overflow-hidden flex flex-col bg-[var(--byte-dark)]">
+            <!-- Chat View -->
             <div id="chatView" class="flex-1 flex flex-col overflow-hidden">
-                <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Chat</h2>
-                            <p class="text-sm text-gray-500">Ask questions about your documents</p>
-                        </div>
-                        <button onclick="clearChat()" class="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-gray-50">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                            <span>Clear</span>
-                        </button>
+                <header class="px-8 py-5 border-b border-white/5 flex items-center justify-between">
+                    <div>
+                        <h2 class="font-display text-xl mb-1">智能对话</h2>
+                        <p class="text-sm text-gray-500">与工程知识库进行自然语言交互</p>
                     </div>
+                    <button onclick="clearChat()" class="btn-ghost text-sm">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        <span>重置对话</span>
+                    </button>
                 </header>
 
-                <div class="flex-1 flex overflow-hidden p-6">
-                    <div class="flex-1 card border border-gray-200 flex flex-col overflow-hidden">
-                        <div class="resizable-container h-full">
-                            <div class="resizable-top" id="chatTop">
-                                <div id="chatContainer" class="h-full overflow-y-auto p-6 space-y-6 scrollbar-hide"></div>
+                <div class="flex-1 flex overflow-hidden p-6 gap-6">
+                    <!-- 聊天区域 -->
+                    <div class="flex-1 glass-card flex flex-col overflow-hidden">
+                        <div class="resizable-container h-full flex flex-col">
+                            <div class="resizable-top flex-1 min-h-[150px] overflow-hidden" id="chatTop">
+                                <div id="chatContainer" class="h-full overflow-y-auto p-6 space-y-4 scrollbar-hide"></div>
                             </div>
-                            
-                            <div class="resize-handle" id="resizeHandle" title="Drag to resize">
-                                <div class="resize-handle-line"></div>
-                            </div>
-                            
-                            <div class="resizable-bottom" id="chatBottom" style="height: 120px;">
-                                <div class="h-full p-4 border-t border-gray-100">
-                                    <form id="chatForm" class="h-full flex space-x-3">
+                            <div class="resize-handle" id="resizeHandle"></div>
+                            <div class="resizable-bottom flex-shrink-0 overflow-hidden" id="chatBottom" style="height: 120px;">
+                                <div class="h-full p-4 flex items-end">
+                                    <form id="chatForm" class="w-full flex gap-3">
                                         <div class="flex-1 relative">
-                                            <textarea id="chatInput" 
-                                                placeholder="Type your message here..."
-                                                class="input-field w-full h-full px-4 py-3 resize-none text-sm"
+                                            <textarea id="chatInput"
+                                                placeholder="输入您的问题，按 Enter 发送..."
+                                                class="input-field w-full h-full py-3 px-4 rounded-xl resize-none"
                                                 rows="1"></textarea>
                                         </div>
-                                        <button type="submit" class="btn-primary px-5 py-2.5 rounded-lg flex items-center space-x-2 text-sm font-medium self-end">
+                                        <button type="submit" class="btn-primary px-5">
                                             <i data-lucide="send" class="w-4 h-4"></i>
-                                            <span>Send</span>
                                         </button>
                                     </form>
                                 </div>
@@ -304,150 +845,198 @@
                         </div>
                     </div>
 
-                    <div class="w-72 ml-6 flex-shrink-0 space-y-4">
-                        <div class="card border border-gray-200 p-5">
-                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Available Tools</h3>
-                            <div id="toolList" class="space-y-2"></div>
+                    <!-- 右侧面板 -->
+                    <div class="w-72 space-y-4">
+                        <div class="glass-card p-5">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-sm font-medium flex items-center gap-2">
+                                    <i data-lucide="message-square" class="w-4 h-4 text-cyan-400"></i>
+                                    对话管理
+                                </h3>
+                                <button onclick="createNewConversation()" class="w-7 h-7 rounded-lg bg-cyan-500/20 flex items-center justify-center hover:bg-cyan-500/30 transition-colors" title="新建对话">
+                                    <i data-lucide="plus" class="w-4 h-4 text-cyan-400"></i>
+                                </button>
+                            </div>
+                            <!-- 对话列表 -->
+                            <div id="conversationList" class="space-y-2 max-h-64 overflow-y-auto scrollbar-hide">
+                                <!-- 动态生成 -->
+                            </div>
+                        </div>
+                        <div class="glass-card p-5">
+                            <h3 class="text-sm font-medium mb-3 flex items-center gap-2">
+                                <i data-lucide="lightbulb" class="w-4 h-4 text-orange-400"></i>
+                                使用提示
+                            </h3>
+                            <ul class="text-xs text-gray-400 space-y-2">
+                                <li>• 支持多轮对话和上下文</li>
+                                <li>• 可询问技术规范问题</li>
+                                <li>• 基于向量检索回答</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div id="tenderView" class="flex-1 flex flex-col overflow-hidden hidden">
-                <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+            <!-- Tender View -->
+            <div id="tenderView" class="hidden-view flex-1 flex flex-col overflow-hidden">
+                <header class="px-8 py-5 border-b border-white/5">
                     <div class="flex items-center justify-between">
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Tender Audit</h2>
-                            <p class="text-sm text-gray-500">Audit tender documents for compliance</p>
+                            <h2 class="font-display text-xl mb-1">标书审核</h2>
+                            <p class="text-sm text-gray-500">基于 GB 标准的投标文件合规性审查</p>
                         </div>
                     </div>
                 </header>
 
-                <div class="flex-1 overflow-auto p-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
-                        <div class="space-y-4">
-                            <div class="card border border-gray-200 p-6">
-                                <h3 class="text-sm font-semibold text-gray-900 mb-4">New Audit Task</h3>
+                <div class="flex-1 overflow-auto p-6 scrollbar-default">
+                    <div class="grid lg:grid-cols-2 gap-6 max-w-5xl">
+                        <!-- 左侧：任务创建 -->
+                        <div class="space-y-6">
+                            <div class="glass-card p-6">
+                                <h3 class="font-medium mb-5 flex items-center gap-2">
+                                    <i data-lucide="folder-plus" class="w-4 h-4 text-cyan-400"></i>
+                                    创建审核任务
+                                </h3>
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Project Name</label>
-                                        <input type="text" id="projectName" placeholder="Enter project name"
-                                            class="input-field w-full px-3 py-2.5 text-sm">
+                                        <label class="block text-sm text-gray-400 mb-2">项目名称</label>
+                                        <input type="text" id="projectName" placeholder="输入项目名称"
+                                            class="input-field">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Project Type</label>
-                                        <select id="projectType" class="input-field w-full px-3 py-2.5 text-sm bg-white">
-                                            <option value="高效机房">High Efficiency Room</option>
-                                            <option value="智能建筑">Smart Building</option>
-                                            <option value="数据中心">Data Center</option>
-                                            <option value="其他">Other</option>
+                                        <label class="block text-sm text-gray-400 mb-2">项目类型</label>
+                                        <select id="projectType" class="input-field-select">
+                                            <option value="高效机房">高效机房</option>
+                                            <option value="智能建筑">智能建筑</option>
+                                            <option value="数据中心">数据中心</option>
+                                            <option value="其他">其他</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Company (Optional)</label>
-                                        <input type="text" id="companyName" placeholder="Enter company name"
-                                            class="input-field w-full px-3 py-2.5 text-sm">
+                                        <label class="block text-sm text-gray-400 mb-2">公司名称 (可选)</label>
+                                        <input type="text" id="companyName" placeholder="输入公司名称"
+                                            class="input-field">
                                     </div>
                                     <button id="createTaskBtn" onclick="createTenderTask()"
-                                        class="btn-primary w-full py-2.5 rounded-lg text-sm font-medium">
-                                        Create Task
+                                        class="btn-primary w-full justify-center">
+                                        创建任务
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="uploadSection" class="hidden card border border-gray-200 p-6">
-                                <div class="flex items-center justify-between mb-4">
-                                    <h3 class="text-sm font-semibold text-gray-900">Upload Files</h3>
-                                    <span class="text-xs text-gray-500 font-mono" id="currentTaskId"></span>
+                            <div id="uploadSection" class="hidden-view glass-card p-6">
+                                <div class="flex items-center justify-between mb-5">
+                                    <h3 class="font-medium flex items-center gap-2">
+                                        <i data-lucide="upload" class="w-4 h-4 text-cyan-400"></i>
+                                        上传文件
+                                    </h3>
+                                    <span class="text-xs text-cyan-400" id="currentTaskId"></span>
                                 </div>
-                                <div class="space-y-3">
-                                    <div id="tenderDropZone" class="drop-zone rounded-lg p-5 text-center cursor-pointer"
+                                <div class="space-y-4">
+                                    <div id="tenderDropZone" class="drop-zone"
                                         ondrop="handleDrop(event, 'tender')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('tenderFileInput').click()">
-                                        <i data-lucide="file-text" class="w-8 h-8 mx-auto text-gray-300 mb-2"></i>
-                                        <p class="text-sm text-gray-600">Tender Document</p>
-                                        <p class="text-xs text-gray-400 mt-1">PDF format</p>
+                                        <i data-lucide="file-text" class="w-8 h-8 mx-auto text-gray-500 mb-2"></i>
+                                        <p class="text-sm">招标文件 (PDF)</p>
+                                        <p class="text-xs text-gray-500 mt-1">拖放或点击选择</p>
                                         <input type="file" id="tenderFileInput" class="hidden" accept=".pdf" onchange="handleFileSelect(event, 'tender')">
-                                        <p id="tenderFileName" class="text-xs text-green-600 mt-2 hidden"></p>
+                                        <p id="tenderFileName" class="text-xs text-cyan-400 mt-2 hidden"></p>
                                     </div>
-                                    <div id="bidDropZone" class="drop-zone rounded-lg p-5 text-center cursor-pointer"
+
+                                    <div id="bidDropZone" class="drop-zone"
                                         ondrop="handleDrop(event, 'bid')" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('bidFileInput').click()">
-                                        <i data-lucide="file-text" class="w-8 h-8 mx-auto text-gray-300 mb-2"></i>
-                                        <p class="text-sm text-gray-600">Bid Document</p>
-                                        <p class="text-xs text-gray-400 mt-1">PDF format</p>
+                                        <i data-lucide="file-text" class="w-8 h-8 mx-auto text-gray-500 mb-2"></i>
+                                        <p class="text-sm">投标文件 (PDF)</p>
+                                        <p class="text-xs text-gray-500 mt-1">拖放或点击选择</p>
                                         <input type="file" id="bidFileInput" class="hidden" accept=".pdf" onchange="handleFileSelect(event, 'bid')">
-                                        <p id="bidFileName" class="text-xs text-green-600 mt-2 hidden"></p>
+                                        <p id="bidFileName" class="text-xs text-cyan-400 mt-2 hidden"></p>
                                     </div>
-                                    <div class="flex items-center space-x-2 pt-2">
-                                        <input type="checkbox" id="useMockCheck" checked class="rounded border-gray-300 text-slate-900 focus:ring-slate-900">
-                                        <label for="useMockCheck" class="text-xs text-gray-500">Use Mock Mode (Fast Test)</label>
-                                    </div>
+
+                                    <label class="flex items-center gap-3 text-sm text-gray-400 cursor-pointer">
+                                        <input type="checkbox" id="useMockCheck" checked class="w-4 h-4 rounded border border-cyan-500/50 text-cyan-500 focus:ring-cyan-500 bg-transparent">
+                                        使用快速测试模式
+                                    </label>
+
                                     <button id="startAuditBtn" onclick="startAudit()" disabled
-                                        class="btn-primary w-full py-2.5 rounded-lg text-sm font-medium">
-                                        Start Audit
+                                        class="btn-primary w-full justify-center">
+                                        开始审核
                                     </button>
                                 </div>
                             </div>
 
-                            <div id="progressSection" class="hidden card border border-gray-200 p-6">
-                                <h3 class="text-sm font-semibold text-gray-900 mb-4">Audit Progress</h3>
+                            <div id="progressSection" class="hidden-view glass-card p-6">
+                                <h3 class="font-medium mb-4 flex items-center gap-2">
+                                    <i data-lucide="loader-2" class="w-4 h-4 text-cyan-400 animate-spin"></i>
+                                    审核进度
+                                </h3>
                                 <div class="space-y-3">
-                                    <div id="stage1" class="flex items-center space-x-3 text-gray-400">
-                                        <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">1</div>
-                                        <span class="text-sm">Parse Document</span>
+                                    <div id="stage1" class="progress-step text-gray-500">
+                                        <div class="progress-dot"></div>
+                                        <span class="text-sm">文档解析</span>
                                     </div>
-                                    <div id="stage2" class="flex items-center space-x-3 text-gray-400">
-                                        <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">2</div>
-                                        <span class="text-sm">Compliance Check</span>
+                                    <div id="stage2" class="progress-step text-gray-500">
+                                        <div class="progress-dot"></div>
+                                        <span class="text-sm">合规性检查</span>
                                     </div>
-                                    <div id="stage3" class="flex items-center space-x-3 text-gray-400">
-                                        <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">3</div>
-                                        <span class="text-sm">Technical Evaluation</span>
+                                    <div id="stage3" class="progress-step text-gray-500">
+                                        <div class="progress-dot"></div>
+                                        <span class="text-sm">技术评估</span>
                                     </div>
-                                    <div id="stage4" class="flex items-center space-x-3 text-gray-400">
-                                        <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">4</div>
-                                        <span class="text-sm">Knowledge Base Verify</span>
+                                    <div id="stage4" class="progress-step text-gray-500">
+                                        <div class="progress-dot"></div>
+                                        <span class="text-sm">知识库验证</span>
                                     </div>
-                                    <div id="stage5" class="flex items-center space-x-3 text-gray-400">
-                                        <div class="w-6 h-6 rounded-full border-2 border-gray-300 flex items-center justify-center text-xs">5</div>
-                                        <span class="text-sm">Risk Assessment</span>
+                                    <div id="stage5" class="progress-step text-gray-500">
+                                        <div class="progress-dot"></div>
+                                        <span class="text-sm">风险评估</span>
                                     </div>
                                 </div>
-                                <p id="statusMessage" class="mt-4 text-xs text-gray-500"></p>
+                                <p id="statusMessage" class="mt-4 text-sm text-gray-500"></p>
                             </div>
                         </div>
 
-                        <div>
-                            <div id="resultSection" class="hidden card border border-gray-200 p-6">
-                                <div class="flex items-center justify-between mb-5">
-                                    <h3 class="text-sm font-semibold text-gray-900">Audit Result</h3>
-                                    <div class="flex space-x-2">
-                                        <button onclick="downloadReport('json')" class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                            JSON
-                                        </button>
-                                        <button onclick="downloadReport('md')" class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                            MD
-                                        </button>
-                                        <button onclick="downloadReport('html')" class="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                                            HTML
-                                        </button>
+                        <!-- 右侧：结果展示（可调节大小） -->
+                        <div class="flex flex-col" style="min-height: 500px;">
+                            <div id="placeholderSection" class="glass-card p-8 flex-1 flex items-center justify-center min-h-[300px]">
+                                <div class="text-center">
+                                    <div class="w-16 h-16 rounded-2xl bg-gray-800 flex items-center justify-center mx-auto mb-4">
+                                        <i data-lucide="file-search" class="w-8 h-8 text-gray-500"></i>
                                     </div>
+                                    <h3 class="font-display text-lg mb-2">等待上传</h3>
+                                    <p class="text-sm text-gray-500">创建任务并上传文件<br>审核结果将在此显示</p>
                                 </div>
-                                <div class="mb-5 p-4 bg-gray-50 rounded-lg">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-gray-600">Compliance Score</span>
-                                        <span id="scoreValue" class="text-2xl font-bold text-gray-900">0</span>
-                                    </div>
-                                    <div class="flex items-center justify-between mt-3">
-                                        <span class="text-sm text-gray-600">Risk Level</span>
-                                        <span id="riskLevel" class="px-2 py-1 rounded text-xs font-medium">-</span>
-                                    </div>
-                                </div>
-                                <div id="reportContent" class="markdown-body h-96 overflow-y-auto scrollbar-hide text-sm text-gray-700"></div>
                             </div>
-                            <div id="placeholderSection" class="card border border-gray-200 p-6">
-                                <div class="text-center text-gray-400 py-16">
-                                    <i data-lucide="file-search" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
-                                    <p class="text-sm">Create a task and upload files<br>results will appear here</p>
+
+                            <div id="resultSection" class="hidden-view flex-1 flex flex-col" style="min-height: 400px;">
+                                <!-- 可调节大小的手柄 -->
+                                <div class="tender-resize-handle h-3 cursor-row-resize flex items-center justify-center hover:bg-cyan-500/10 transition-colors">
+                                    <div class="w-12 h-1 rounded-full bg-gray-600 hover:bg-cyan-500/50 transition-colors"></div>
+                                </div>
+
+                                <div class="glass-card p-6 flex-1 overflow-hidden flex flex-col">
+                                    <div class="flex items-center justify-between mb-5 flex-shrink-0">
+                                        <h3 class="font-medium flex items-center gap-2">
+                                            <i data-lucide="check-circle" class="w-4 h-4 text-green-400"></i>
+                                            审核结果
+                                        </h3>
+                                        <div class="flex gap-2">
+                                            <button onclick="downloadReport('json')" class="btn-ghost text-xs px-3 py-1">JSON</button>
+                                            <button onclick="downloadReport('md')" class="btn-ghost text-xs px-3 py-1">Markdown</button>
+                                            <button onclick="downloadReport('html')" class="btn-ghost text-xs px-3 py-1">HTML</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="p-4 rounded-xl bg-white/5 mb-4 flex-shrink-0">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <span class="text-sm text-gray-400">合规分数</span>
+                                            <span id="scoreValue" class="font-display text-4xl text-cyan-400">0</span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-sm text-gray-400">风险等级</span>
+                                            <span id="riskLevel" class="text-xs px-3 py-1 rounded-full">-</span>
+                                        </div>
+                                    </div>
+
+                                    <div id="reportContent" class="markdown-body flex-1 overflow-y-auto scrollbar-hide text-sm"></div>
                                 </div>
                             </div>
                         </div>
@@ -455,84 +1044,276 @@
                 </div>
             </div>
 
-            <div id="quoteView" class="flex-1 flex flex-col overflow-hidden hidden">
-                <header class="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
-                    <div class="flex items-center justify-between">
+            <!-- Quote View -->
+            <div id="quoteView" class="hidden-view flex-1 flex flex-col overflow-hidden">
+                <header class="px-8 py-5 border-b border-white/5 flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center">
+                            <i data-lucide="file-spreadsheet" class="w-5 h-5 text-white"></i>
+                        </div>
                         <div>
-                            <h2 class="text-lg font-semibold text-gray-900">Quote Audit</h2>
-                            <p class="text-sm text-gray-500">Audit quote spreadsheets for compliance</p>
+                            <h2 class="font-display text-xl mb-1">报价审核</h2>
+                            <p class="text-sm text-gray-500">工程量清单自动化审核 · GB 50500 标准</p>
                         </div>
                     </div>
+                    <div id="quoteStatusPill" class="hidden-view text-sm"></div>
                 </header>
 
-                <div class="flex-1 overflow-auto p-6">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-6xl mx-auto">
-                        <div class="space-y-4">
-                            <div class="card border border-gray-200 p-6">
-                                <h3 class="text-sm font-semibold text-gray-900 mb-4">Upload Quote File</h3>
-                                <div class="space-y-4">
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Project Name</label>
-                                        <input type="text" id="quoteProjectName" placeholder="Enter project name"
-                                            class="input-field w-full px-3 py-2.5 text-sm">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Total RT (Optional)</label>
-                                        <input type="number" id="quoteTotalRT" placeholder="e.g. 1650"
-                                            class="input-field w-full px-3 py-2.5 text-sm">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-600 mb-1.5">Building Area (Optional)</label>
-                                        <input type="number" id="quoteBuildingArea" placeholder="e.g. 5000"
-                                            class="input-field w-full px-3 py-2.5 text-sm">
-                                    </div>
-                                    <div id="quoteDropZone" class="drop-zone rounded-lg p-5 text-center cursor-pointer"
-                                        ondrop="handleQuoteDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('quoteFileInput').click()">
-                                        <i data-lucide="file-spreadsheet" class="w-8 h-8 mx-auto text-gray-300 mb-2"></i>
-                                        <p class="text-sm text-gray-600">Quote Spreadsheet</p>
-                                        <p class="text-xs text-gray-400 mt-1">Excel format (.xls, .xlsx)</p>
-                                        <input type="file" id="quoteFileInput" class="hidden" accept=".xls,.xlsx" onchange="handleQuoteFileSelect(event)">
-                                        <p id="quoteFileName" class="text-xs text-green-600 mt-2 hidden"></p>
-                                    </div>
-                                    <button id="startQuoteAuditBtn" onclick="startQuoteAudit()" disabled
-                                        class="btn-primary w-full py-2.5 rounded-lg text-sm font-medium">
-                                        Start Audit
-                                    </button>
+                <div class="flex-1 flex overflow-hidden p-6 gap-6">
+                    <!-- 左侧：配置 -->
+                    <div class="w-96 space-y-6 overflow-y-auto scrollbar-default">
+                        <div class="glass-card p-6">
+                            <h3 class="font-medium mb-4 flex items-center gap-2">
+                                <i data-lucide="upload-cloud" class="w-4 h-4 text-cyan-400"></i>
+                                文件上传
+                            </h3>
+                            <div id="quoteDropZone" class="drop-zone"
+                                ondrop="handleQuoteDrop(event)" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" onclick="document.getElementById('quoteFileInput').click()">
+                                <div id="quoteUploadIcon" class="w-14 h-14 mx-auto rounded-xl bg-gray-800 flex items-center justify-center mb-3">
+                                    <i data-lucide="upload" class="w-6 h-6 text-gray-500"></i>
                                 </div>
+                                <p id="quoteUploadText" class="text-sm">拖放 Excel 文件</p>
+                                <p class="text-xs text-gray-500 mt-1">或点击选择 (.xls / .xlsx)</p>
+                                <input type="file" id="quoteFileInput" class="hidden" accept=".xls,.xlsx" onchange="handleQuoteFileSelect(event)">
+                            </div>
+
+                            <div id="quoteFileCard" class="hidden-view mt-4 p-3 rounded-xl bg-white/5 flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center">
+                                    <i data-lucide="file-check" class="w-4 h-4 text-green-400"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p id="quoteFileName" class="text-sm truncate"></p>
+                                    <p id="quoteFileSize" class="text-xs text-gray-500"></p>
+                                </div>
+                                <button onclick="clearQuoteFile()" class="p-1 rounded hover:bg-white/10">
+                                    <i data-lucide="x" class="w-4 h-4 text-gray-500"></i>
+                                </button>
                             </div>
                         </div>
 
-                        <div>
-                            <div id="quoteResultSection" class="hidden card border border-gray-200 p-6">
-                                <div class="flex items-center justify-between mb-5">
-                                    <h3 class="text-sm font-semibold text-gray-900">Audit Result</h3>
-                                    <span id="quoteStatus" class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">Pending</span>
+                        <div class="glass-card p-6">
+                            <h3 class="font-medium mb-4 flex items-center gap-2">
+                                <i data-lucide="settings" class="w-4 h-4 text-cyan-400"></i>
+                                项目参数
+                            </h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">项目名称</label>
+                                    <input type="text" id="quoteProjectName" placeholder="输入项目名称" class="input-field">
                                 </div>
-                                <div class="mb-5 p-4 bg-gray-50 rounded-lg space-y-3">
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-gray-600">Total Items</span>
-                                        <span id="quoteTotalItems" class="text-lg font-bold text-gray-900">0</span>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-sm text-gray-400 mb-2">总制冷量</label>
+                                        <div class="relative">
+                                            <input type="number" id="quoteTotalRT" placeholder="1650" class="input-field pr-12">
+                                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500">RT</span>
+                                        </div>
                                     </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-gray-600">Pass Rate</span>
-                                        <span id="quotePassRate" class="text-lg font-bold text-gray-900">0%</span>
-                                    </div>
-                                    <div class="flex items-center justify-between">
-                                        <span class="text-sm text-gray-600">Issues</span>
-                                        <div class="flex space-x-2">
-                                            <span id="quoteFatalCount" class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">0 Fatal</span>
-                                            <span id="quoteMajorCount" class="px-2 py-1 rounded text-xs font-medium bg-orange-100 text-orange-700">0 Major</span>
-                                            <span id="quoteWarningCount" class="px-2 py-1 rounded text-xs font-medium bg-yellow-100 text-yellow-700">0 Warning</span>
+                                    <div>
+                                        <label class="block text-sm text-gray-400 mb-2">建筑面积</label>
+                                        <div class="relative">
+                                            <input type="number" id="quoteBuildingArea" placeholder="5000" class="input-field pr-12">
+                                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-500">㎡</span>
                                         </div>
                                     </div>
                                 </div>
-                                <div id="quoteReportContent" class="markdown-body h-96 overflow-y-auto scrollbar-hide text-sm text-gray-700"></div>
                             </div>
-                            <div id="quotePlaceholderSection" class="card border border-gray-200 p-6">
-                                <div class="text-center text-gray-400 py-16">
-                                    <i data-lucide="file-spreadsheet" class="w-12 h-12 mx-auto mb-4 text-gray-300"></i>
-                                    <p class="text-sm">Upload a quote file<br>results will appear here</p>
+                        </div>
+
+                        <button id="startQuoteAuditBtn" onclick="startQuoteAudit()" disabled
+                            class="btn-primary w-full justify-center">
+                            <i data-lucide="shield-check" class="w-4 h-4"></i>
+                            开始审核
+                        </button>
+
+                        <div id="quoteProgressSection" class="hidden-view glass-card p-6">
+                            <h3 class="font-medium mb-4 flex items-center gap-2">
+                                <i data-lucide="loader" class="w-4 h-4 text-cyan-400"></i>
+                                审核进度
+                            </h3>
+                            <div class="space-y-3">
+                                <div id="qStage1" class="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                                    <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs">L1</div>
+                                    <div>
+                                        <p class="text-sm">数据清洗</p>
+                                        <p class="text-xs text-gray-500">解析 Excel 结构</p>
+                                    </div>
                                 </div>
+                                <div id="qStage2" class="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                                    <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs">L2</div>
+                                    <div>
+                                        <p class="text-sm">合规检查</p>
+                                        <p class="text-xs text-gray-500">GB 50500 规范</p>
+                                    </div>
+                                </div>
+                                <div id="qStage3" class="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                                    <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs">L3</div>
+                                    <div>
+                                        <p class="text-sm">算术校验</p>
+                                        <p class="text-xs text-gray-500">工程量×单价=合价</p>
+                                    </div>
+                                </div>
+                                <div id="qStage4" class="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                                    <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs">L4</div>
+                                    <div>
+                                        <p class="text-sm">造价指标</p>
+                                        <p class="text-xs text-gray-500">费用占比分析</p>
+                                    </div>
+                                </div>
+                                <div id="qStage5" class="flex items-center gap-3 p-3 rounded-xl bg-white/5">
+                                    <div class="w-8 h-8 rounded-lg bg-gray-800 flex items-center justify-center text-xs">L5</div>
+                                    <div>
+                                        <p class="text-sm">报告生成</p>
+                                        <p class="text-xs text-gray-500">Markdown 报告</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：结果 -->
+                    <div class="flex-1 overflow-y-auto scrollbar-default">
+                        <div id="quotePlaceholderSection" class="h-full flex items-center justify-center">
+                            <div class="text-center">
+                                <div class="w-20 h-20 rounded-3xl bg-gray-800 flex items-center justify-center mx-auto mb-6">
+                                    <svg class="w-10 h-10 text-gray-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                        <path d="M9 17H5a2 2 0 00-2 2 2 2 0 002 2h2a2 2 0 002-2zm12-2h-4a2 2 0 00-2 2 2 2 0 002 2h2a2 2 0 002-2z"/>
+                                        <path d="M5 17V9a2 2 0 012-2h10a2 2 0 012 2v8"/>
+                                        <path d="M12 17v-4"/>
+                                        <circle cx="12" cy="9" r="2"/>
+                                    </svg>
+                                </div>
+                                <h3 class="font-display text-xl mb-3">上传工程量清单开始审核</h3>
+                                <p class="text-sm text-gray-500 max-w-md mx-auto mb-8">支持 .xls 和 .xlsx 格式<br>系统将自动解析清单结构并进行 5 层深度审核</p>
+                                <div class="flex items-center justify-center gap-8 text-sm text-gray-500">
+                                    <span class="flex items-center gap-2">
+                                        <i data-lucide="check-circle" class="w-4 h-4 text-cyan-400"></i>
+                                        算术校验
+                                    </span>
+                                    <span class="flex items-center gap-2">
+                                        <i data-lucide="check-circle" class="w-4 h-4 text-cyan-400"></i>
+                                        合规检查
+                                    </span>
+                                    <span class="flex items-center gap-2">
+                                        <i data-lucide="check-circle" class="w-4 h-4 text-cyan-400"></i>
+                                        造价分析
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="quoteResultSection" class="hidden-view space-y-6">
+                            <div id="quoteStatusBanner" class="glass-card p-6">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-4">
+                                        <div id="quoteStatusIcon" class="w-12 h-12 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                                            <i data-lucide="shield-check" class="w-6 h-6 text-cyan-400"></i>
+                                        </div>
+                                        <div>
+                                            <div class="flex items-center gap-2 mb-1">
+                                                <span id="quoteOverallStatus" class="font-display text-xl"></span>
+                                            </div>
+                                            <p id="quoteProjectNameDisplay" class="text-sm text-gray-500"></p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-4">
+                                        <button onclick="downloadQuoteReport()" class="btn-ghost text-sm flex items-center gap-2">
+                                            <i data-lucide="download" class="w-4 h-4"></i>
+                                            下载报告
+                                        </button>
+                                        <div class="text-right">
+                                            <div class="font-display text-4xl text-cyan-400" id="quotePassRateDisplay">0%</div>
+                                            <p class="text-xs text-gray-500">通过率</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-4 gap-4">
+                                <div class="stat-card">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i data-lucide="layers" class="w-4 h-4 text-gray-500"></i>
+                                        <span class="text-xs text-gray-500 uppercase">清单条目</span>
+                                    </div>
+                                    <div class="font-display text-2xl" id="quoteTotalItemsDisplay">0</div>
+                                </div>
+                                <div class="stat-card cursor-pointer hover:bg-white/10 transition-colors" onclick="showIssuesBySeverity('fatal')">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i data-lucide="alert-octagon" class="w-4 h-4 text-red-400"></i>
+                                        <span class="text-xs text-red-400 uppercase">致命</span>
+                                    </div>
+                                    <div class="font-display text-2xl text-red-400" id="quoteFatalDisplay">0</div>
+                                </div>
+                                <div class="stat-card cursor-pointer hover:bg-white/10 transition-colors" onclick="showIssuesBySeverity('major')">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i data-lucide="alert-triangle" class="w-4 h-4 text-orange-400"></i>
+                                        <span class="text-xs text-orange-400 uppercase">重大</span>
+                                    </div>
+                                    <div class="font-display text-2xl text-orange-400" id="quoteMajorDisplay">0</div>
+                                </div>
+                                <div class="stat-card cursor-pointer hover:bg-white/10 transition-colors" onclick="showIssuesBySeverity('warning')">
+                                    <div class="flex items-center gap-2 mb-2">
+                                        <i data-lucide="alert-circle" class="w-4 h-4 text-yellow-400"></i>
+                                        <span class="text-xs text-yellow-400 uppercase">警告</span>
+                                    </div>
+                                    <div class="font-display text-2xl text-yellow-400" id="quoteWarningDisplay">0</div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-6">
+                                <div class="glass-card p-6">
+                                    <h3 class="text-sm font-medium mb-4 flex items-center gap-2">
+                                        <i data-lucide="pie-chart" class="w-4 h-4 text-cyan-400"></i>
+                                        费用构成分析
+                                    </h3>
+                                    <div id="costBreakdownChart" class="h-36 flex items-end justify-around gap-4 mb-4"></div>
+                                    <div class="grid grid-cols-4 gap-4 text-center">
+                                        <div>
+                                            <div class="font-display text-lg text-blue-400" id="costMaterial">0%</div>
+                                            <div class="text-xs text-gray-500">材料费</div>
+                                        </div>
+                                        <div>
+                                            <div class="font-display text-lg text-emerald-400" id="costLabor">0%</div>
+                                            <div class="text-xs text-gray-500">人工费</div>
+                                        </div>
+                                        <div>
+                                            <div class="font-display text-lg text-purple-400" id="costMeasures">0%</div>
+                                            <div class="text-xs text-gray-500">措施费</div>
+                                        </div>
+                                        <div>
+                                            <div class="font-display text-lg text-cyan-400" id="costTax">0%</div>
+                                            <div class="text-xs text-gray-500">税金</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div id="unitCostSection" class="hidden-view glass-card p-6">
+                                    <h3 class="text-sm font-medium mb-4 flex items-center gap-2">
+                                        <i data-lucide="activity" class="w-4 h-4 text-cyan-400"></i>
+                                        单位造价指标
+                                    </h3>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div class="p-4 rounded-xl bg-white/5 text-center">
+                                            <div class="text-xs text-gray-500 mb-2">元 / RT</div>
+                                            <div class="font-display text-2xl" id="costPerRT">-</div>
+                                        </div>
+                                        <div class="p-4 rounded-xl bg-white/5 text-center">
+                                            <div class="text-xs text-gray-500 mb-2">元 / ㎡</div>
+                                            <div class="font-display text-2xl" id="costPerSqm">-</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="glass-card p-6">
+                                <div class="flex items-center justify-between mb-4">
+                                    <h3 class="text-sm font-medium flex items-center gap-2">
+                                        <i data-lucide="list-alert" class="w-4 h-4 text-cyan-400"></i>
+                                        清单明细
+                                    </h3>
+                                    <span class="text-xs text-gray-500" id="quoteSectionCount">0 个章节</span>
+                                </div>
+                                <div id="quoteSectionsList" class="space-y-3 max-h-96 overflow-y-auto scrollbar-default"></div>
                             </div>
                         </div>
                     </div>
@@ -545,166 +1326,388 @@
         lucide.createIcons();
         const API_BASE = 'http://localhost:8000/api';
 
+        // ==================== 视图切换 ====================
+        function showAppView() {
+            document.getElementById('landingView').classList.add('hidden-view');
+            document.getElementById('appView').classList.remove('hidden-view');
+            lucide.createIcons();
+        }
+
+        function showLandingView() {
+            document.getElementById('appView').classList.add('hidden-view');
+            document.getElementById('landingView').classList.remove('hidden-view');
+            lucide.createIcons();
+        }
+
+        // ==================== API 封装 ====================
         async function fetchWithRetry(url, options = {}, maxRetries = 3, baseDelay = 1000) {
             let lastError;
             for (let attempt = 0; attempt <= maxRetries; attempt++) {
                 try {
                     const response = await fetch(url, options);
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     return response;
                 } catch (error) {
                     lastError = error;
-                    if (attempt >= maxRetries) {
-                        console.error(`Final attempt ${attempt + 1} failed, no more retries`);
-                        throw error;
-                    }
-                    const delay = Math.min(baseDelay * Math.pow(2, attempt), 10000);
-                    const jitter = delay * 0.1 * (2 * Math.random() - 1);
-                    const delayWithJitter = Math.max(500, delay + jitter);
-                    console.warn(`Attempt ${attempt + 1}/${maxRetries + 1} failed: ${error.message}. Retrying in ${(delayWithJitter / 1000).toFixed(1)}s...`);
-                    await new Promise(resolve => setTimeout(resolve, delayWithJitter));
+                    if (attempt >= maxRetries) throw error;
+                    await new Promise(r => setTimeout(r, Math.min(baseDelay * Math.pow(2, attempt), 10000)));
                 }
             }
             throw lastError;
         }
 
-        let messageCount = 1;
+        // ==================== 全局状态 ====================
         let currentTaskId = null;
         let tenderFile = null;
         let bidFile = null;
         let pollInterval = null;
+        let quoteFile = null;
+
+        // 对话管理状态
+        let conversations = [];
+        let currentConversationId = null;
 
         const chatForm = document.getElementById('chatForm');
         const chatInput = document.getElementById('chatInput');
         const chatContainer = document.getElementById('chatContainer');
-        const messageCountEl = document.getElementById('messageCount');
-        const toolListEl = document.getElementById('toolList');
-        const toolCountEl = document.getElementById('toolCount');
+        const conversationListEl = document.getElementById('conversationList');
 
+        // ==================== 对话管理 (后端同步) ====================
+        async function initConversations() {
+            try {
+                // 从后端加载对话列表
+                const response = await fetchWithRetry(API_BASE + '/conversations', {}, 2, 500);
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    conversations = data.data;
+                }
+
+                // 如果没有对话，创建一个默认对话
+                if (conversations.length === 0) {
+                    await createNewConversation(true);
+                } else {
+                    // 加载最后一个对话
+                    currentConversationId = conversations[0].id;
+                }
+
+                renderConversationList();
+                await loadCurrentConversation();
+            } catch (e) {
+                console.error('初始化对话失败:', e);
+                // 如果加载失败，创建一个默认对话
+                if (conversations.length === 0) {
+                    await createNewConversation(true);
+                }
+                renderConversationList();
+            }
+        }
+
+        async function createNewConversation(silent = false) {
+            try {
+                const response = await fetchWithRetry(API_BASE + '/conversations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: '新对话' })
+                }, 2, 500);
+
+                const data = await response.json();
+
+                if (data.success && data.data) {
+                    const newConv = {
+                        id: data.data.id,
+                        title: data.data.title,
+                        messages: [],
+                        created_at: data.data.created_at,
+                        updated_at: data.data.updated_at
+                    };
+
+                    // 添加到列表开头
+                    conversations.unshift(newConv);
+                    currentConversationId = newConv.id;
+
+                    renderConversationList();
+                    clearChat();
+
+                    if (!silent) {
+                        addWelcomeMessage();
+                    }
+
+                    lucide.createIcons();
+                    return newConv;
+                }
+            } catch (e) {
+                console.error('创建对话失败:', e);
+                alert('创建对话失败: ' + e.message);
+            }
+        }
+
+        async function switchConversation(convId) {
+            // 保存当前对话消息
+            await saveCurrentConversation();
+
+            // 切换对话
+            currentConversationId = convId;
+            await loadCurrentConversation();
+            renderConversationList();
+        }
+
+        async function deleteConversation(convId, event) {
+            event.stopPropagation();
+
+            if (conversations.length <= 1) {
+                alert('至少需要保留一个对话');
+                return;
+            }
+
+            try {
+                const response = await fetchWithRetry(API_BASE + '/conversations/' + convId, {
+                    method: 'DELETE'
+                }, 2, 500);
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const idx = conversations.findIndex(c => c.id === convId);
+                    if (idx !== -1) {
+                        conversations.splice(idx, 1);
+                    }
+
+                    // 如果删除的是当前对话，切换到其他对话
+                    if (currentConversationId === convId) {
+                        currentConversationId = conversations[0]?.id;
+                        await loadCurrentConversation();
+                    }
+
+                    renderConversationList();
+                }
+            } catch (e) {
+                console.error('删除对话失败:', e);
+                alert('删除对话失败');
+            }
+        }
+
+        async function saveCurrentConversation() {
+            if (!currentConversationId) return;
+
+            // 获取当前界面上的消息并同步到后端
+            const messageEls = chatContainer.querySelectorAll('[data-role]');
+            const messages = [];
+
+            messageEls.forEach(el => {
+                const role = el.getAttribute('data-role');
+                const content = el.getAttribute('data-content');
+                const useMarkdown = el.getAttribute('data-markdown') === 'true';
+                if (role && content) {
+                    messages.push({ role, content, use_markdown: useMarkdown });
+                }
+            });
+
+            // 更新本地列表中的标题
+            const conv = conversations.find(c => c.id === currentConversationId);
+            if (conv && messages.length > 0) {
+                const firstUserMsg = messages.find(m => m.role === 'user');
+                if (firstUserMsg) {
+                    conv.title = firstUserMsg.content.substring(0, 20) + (firstUserMsg.content.length > 20 ? '...' : '');
+                }
+            }
+        }
+
+        async function loadCurrentConversation() {
+            if (!currentConversationId) {
+                clearChat();
+                addWelcomeMessage();
+                return;
+            }
+
+            try {
+                const response = await fetchWithRetry(API_BASE + '/conversations/' + currentConversationId + '/messages', {}, 2, 500);
+                const data = await response.json();
+
+                chatContainer.innerHTML = '';
+
+                if (data.success && data.data && data.data.length > 0) {
+                    data.data.forEach(msg => {
+                        addMessageToChat(msg.role, msg.content, msg.use_markdown, false);
+                    });
+                } else {
+                    addWelcomeMessage();
+                }
+
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } catch (e) {
+                console.error('加载对话失败:', e);
+                clearChat();
+                addWelcomeMessage();
+            }
+        }
+
+        function addWelcomeMessage() {
+            addMessageToChat('assistant', '您好，我是 Agentic RAG 智能助手。请问有什么可以帮您？', false, false);
+        }
+
+        function renderConversationList() {
+            if (!conversationListEl) return;
+
+            // 按更新时间倒序排列
+            const sorted = [...conversations].sort((a, b) =>
+                new Date(b.updated_at) - new Date(a.updated_at)
+            );
+
+            conversationListEl.innerHTML = sorted.map(conv => {
+                const isActive = conv.id === currentConversationId;
+                const time = formatTime(conv.updated_at);
+
+                return `
+                    <div onclick="switchConversation('${conv.id}')"
+                         class="group p-3 rounded-xl cursor-pointer transition-all ${isActive ? 'bg-cyan-500/20 border border-cyan-500/30' : 'bg-white/5 hover:bg-white/10'}">
+                        <div class="flex items-start gap-2">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2">
+                                    <i data-lucide="message-square" class="w-3.5 h-3.5 ${isActive ? 'text-cyan-400' : 'text-gray-500'}"></i>
+                                    <span class="text-sm font-medium truncate ${isActive ? 'text-cyan-400' : 'text-gray-300'}">${escapeHtml(conv.title)}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1 ml-5">${time}</div>
+                            </div>
+                            <button onclick="deleteConversation('${conv.id}', event)"
+                                    class="w-6 h-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
+                                    title="删除对话">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5 text-gray-500 hover:text-red-400"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+
+            // 1分钟内
+            if (diff < 60000) return '刚刚';
+            // 1小时内
+            if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+            // 24小时内
+            if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+            // 超过24小时显示日期
+            return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== 初始化 ====================
         function initChat() {
-            addMessageToChat('assistant', 'Hello! How can I help you?');
+            // 由 initConversations 处理
         }
 
         function switchTab(tab) {
-            const chatView = document.getElementById('chatView');
-            const tenderView = document.getElementById('tenderView');
-            const quoteView = document.getElementById('quoteView');
-            const navChat = document.getElementById('navChat');
-            const navTender = document.getElementById('navTender');
-            const navQuote = document.getElementById('navQuote');
+            const views = ['chat', 'tender', 'quote'];
+            const navIds = ['navChat', 'navTender', 'navQuote'];
+            const viewIds = ['chatView', 'tenderView', 'quoteView'];
 
-            // Reset all nav items
-            [navChat, navTender, navQuote].forEach(nav => {
-                nav.classList.remove('active');
-                nav.classList.add('text-gray-500');
-                nav.classList.remove('text-gray-700');
-            });
-            // Hide all views
-            [chatView, tenderView, quoteView].forEach(view => view.classList.add('hidden'));
+            views.forEach((v, idx) => {
+                const nav = document.getElementById(navIds[idx]);
+                const view = document.getElementById(viewIds[idx]);
 
-            if (tab === 'chat') {
-                chatView.classList.remove('hidden');
-                navChat.classList.add('active');
-                navChat.classList.remove('text-gray-500');
-                navChat.classList.add('text-gray-700');
-            } else if (tab === 'tender') {
-                tenderView.classList.remove('hidden');
-                navTender.classList.add('active');
-                navTender.classList.remove('text-gray-500');
-                navTender.classList.add('text-gray-700');
-            } else if (tab === 'quote') {
-                quoteView.classList.remove('hidden');
-                navQuote.classList.add('active');
-                navQuote.classList.remove('text-gray-500');
-                navQuote.classList.add('text-gray-700');
-            }
-        }
-
-        async function loadTools() {
-            try {
-                const response = await fetchWithRetry(API_BASE + '/agent/tools', {}, 2, 500);
-                const data = await response.json();
-                if (data.success && data.data) {
-                    toolListEl.innerHTML = '';
-                    data.data.forEach(tool => {
-                        const toolItem = document.createElement('div');
-                        toolItem.className = 'p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors';
-                        toolItem.innerHTML = '<div class="font-medium text-sm text-gray-800">' + tool.name + '</div><div class="text-xs text-gray-500 mt-1">' + tool.description + '</div>';
-                        toolListEl.appendChild(toolItem);
-                    });
-                    toolCountEl.textContent = data.data.length + ' tools loaded';
+                if (v === tab) {
+                    nav.classList.add('active');
+                    view.classList.remove('hidden-view');
+                } else {
+                    nav.classList.remove('active');
+                    view.classList.add('hidden-view');
                 }
-            } catch (e) {
-                console.error('Load tools failed:', e);
-                toolCountEl.textContent = '0 tools loaded';
-            }
+            });
+
+            lucide.createIcons();
         }
 
+        // ==================== 聊天功能 ====================
         async function sendMessage() {
             const message = chatInput.value.trim();
             if (!message) return;
-            addMessageToChat('user', message);
+
+            addMessageToChat('user', message, false, false);
             chatInput.value = '';
-            messageCount++;
-            messageCountEl.textContent = messageCount;
+
             const loadingId = addLoadingMessage();
+
             try {
                 const response = await fetchWithRetry(API_BASE + '/agent/invoke', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: message })
+                    body: JSON.stringify({
+                        query: message,
+                        conversation_id: currentConversationId
+                    })
                 }, 2, 1000);
+
                 const data = await response.json();
                 removeLoadingMessage(loadingId);
+
                 if (data.success) {
-                    addMessageToChat('assistant', data.data.answer, true);
-                    messageCount++;
-                    messageCountEl.textContent = messageCount;
+                    addMessageToChat('assistant', data.data.answer, true, false);
+                    // 重新加载对话列表以更新标题
+                    await loadConversationsFromServer();
+                    renderConversationList();
                 } else {
-                    addMessageToChat('assistant', 'Error: ' + data.error);
-                    messageCount++;
-                    messageCountEl.textContent = messageCount;
+                    addMessageToChat('assistant', '错误: ' + data.error, false, false);
                 }
             } catch (e) {
                 removeLoadingMessage(loadingId);
-                addMessageToChat('assistant', 'API Error: ' + e.message);
-                messageCount++;
-                messageCountEl.textContent = messageCount;
+                addMessageToChat('assistant', 'API 错误: ' + e.message, false, false);
             }
         }
 
-        function addMessageToChat(role, content, useMarkdown) {
+        async function loadConversationsFromServer() {
+            try {
+                const response = await fetchWithRetry(API_BASE + '/conversations', {}, 2, 500);
+                const data = await response.json();
+                if (data.success && data.data) {
+                    conversations = data.data;
+                }
+            } catch (e) {
+                console.error('加载对话列表失败:', e);
+            }
+        }
+
+        function addMessageToChat(role, content, useMarkdown = false, save = true) {
             const messageEl = document.createElement('div');
-            messageEl.className = 'flex items-start space-x-3 ' + (role === 'user' ? 'flex-row-reverse space-x-reverse' : '');
-            
-            const icon = role === 'user' ? 'user' : 'robot';
-            const bgColor = role === 'user' ? 'bg-slate-900 text-white' : 'bg-gray-50';
-            const textColor = role === 'user' ? 'text-white' : 'text-gray-700';
-            
+            const isUser = role === 'user';
+            messageEl.className = 'flex items-start gap-3 ' + (isUser ? 'flex-row-reverse' : '');
+            messageEl.setAttribute('data-role', role);
+            messageEl.setAttribute('data-content', content);
+            messageEl.setAttribute('data-markdown', useMarkdown ? 'true' : 'false');
+
             let contentHtml = '';
             if (useMarkdown && content) {
-                contentHtml = marked.parse(content);
+                contentHtml = '<div class="markdown-body">' + marked.parse(content) + '</div>';
             } else {
-                contentHtml = '<p class="' + textColor + ' text-sm">' + content + '</p>';
+                contentHtml = '<p class="text-sm leading-relaxed">' + escapeHtml(content) + '</p>';
             }
-            
-            const avatarBg = role === 'user' ? 'bg-slate-900' : 'bg-gray-100';
-            const iconColor = role === 'user' ? 'text-white' : 'text-gray-600';
-            
+
             messageEl.innerHTML = `
-                <div class="w-8 h-8 ${avatarBg} rounded-full flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="${icon}" class="w-4 h-4 ${iconColor}"></i>
+                <div class="w-10 h-10 rounded-xl ${isUser ? 'gradient-bg' : 'bg-white/10'} flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="${isUser ? 'user' : 'sparkles'}" class="w-5 h-5 ${isUser ? 'text-white' : 'text-cyan-400'}"></i>
                 </div>
-                <div class="max-w-2xl">
-                    <div class="${bgColor} rounded-xl px-4 py-3 ${useMarkdown ? 'markdown-body' : ''}">
+                <div class="max-w-xl">
+                    <div class="${isUser ? 'gradient-bg text-white' : 'bg-white/5'} rounded-2xl px-5 py-3">
                         ${contentHtml}
                     </div>
                 </div>
             `;
+
             chatContainer.appendChild(messageEl);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (save) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
             lucide.createIcons();
         }
 
@@ -712,16 +1715,16 @@
             const loadingId = 'loading_' + Date.now();
             const loadingEl = document.createElement('div');
             loadingEl.id = loadingId;
-            loadingEl.className = 'flex items-start space-x-3';
+            loadingEl.className = 'flex items-start gap-3';
             loadingEl.innerHTML = `
-                <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <i data-lucide="robot" class="w-4 h-4 text-gray-600"></i>
+                <div class="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-cyan-400"></i>
                 </div>
-                <div class="bg-gray-50 rounded-xl px-4 py-3">
-                    <div class="flex space-x-1">
-                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0ms"></div>
-                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:150ms"></div>
-                        <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:300ms"></div>
+                <div class="bg-white/5 rounded-2xl px-5 py-3">
+                    <div class="flex gap-2">
+                        <div class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay:0ms"></div>
+                        <div class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay:150ms"></div>
+                        <div class="w-2 h-2 rounded-full bg-cyan-400 animate-bounce" style="animation-delay:300ms"></div>
                     </div>
                 </div>
             `;
@@ -738,9 +1741,7 @@
 
         function clearChat() {
             chatContainer.innerHTML = '';
-            initChat();
-            messageCount = 1;
-            messageCountEl.textContent = messageCount;
+            addWelcomeMessage();
         }
 
         chatForm.addEventListener('submit', function(e) {
@@ -755,14 +1756,17 @@
             }
         });
 
+        // ==================== 标书审核 ====================
         async function createTenderTask() {
             const projectName = document.getElementById('projectName').value.trim();
             const projectType = document.getElementById('projectType').value;
             const companyName = document.getElementById('companyName').value.trim();
+
             if (!projectName) {
-                alert('Please enter project name');
+                alert('请输入项目名称');
                 return;
             }
+
             try {
                 const response = await fetchWithRetry(API_BASE + '/tender/create', {
                     method: 'POST',
@@ -773,19 +1777,21 @@
                         company_name: companyName
                     })
                 }, 3, 1000);
+
                 const data = await response.json();
+
                 if (data.success) {
                     currentTaskId = data.data.task_id;
                     document.getElementById('currentTaskId').textContent = '#' + currentTaskId;
-                    document.getElementById('uploadSection').classList.remove('hidden');
+                    document.getElementById('uploadSection').classList.remove('hidden-view');
                     document.getElementById('createTaskBtn').disabled = true;
-                    document.getElementById('createTaskBtn').textContent = 'Task Created';
-                    document.getElementById('createTaskBtn').classList.add('opacity-60');
+                    document.getElementById('createTaskBtn').textContent = '任务已创建';
+                    document.getElementById('createTaskBtn').style.opacity = '0.6';
                 } else {
-                    alert('Create task failed: ' + data.error);
+                    alert('创建任务失败: ' + data.error);
                 }
             } catch (e) {
-                alert('Create task failed: ' + e.message);
+                alert('创建任务失败: ' + e.message);
             }
         }
 
@@ -813,9 +1819,10 @@
 
         async function processFile(file, fileType) {
             if (!file.name.toLowerCase().endsWith('.pdf')) {
-                alert('Please upload PDF file');
+                alert('请上传 PDF 文件');
                 return;
             }
+
             if (fileType === 'tender') {
                 tenderFile = file;
                 document.getElementById('tenderFileName').textContent = '✓ ' + file.name;
@@ -825,25 +1832,29 @@
                 document.getElementById('bidFileName').textContent = '✓ ' + file.name;
                 document.getElementById('bidFileName').classList.remove('hidden');
             }
+
             await uploadFile(file, fileType);
         }
 
         async function uploadFile(file, fileType) {
             const formData = new FormData();
             formData.append('file', file);
+
             try {
                 const response = await fetchWithRetry(API_BASE + '/tender/upload/' + currentTaskId + '/' + fileType, {
                     method: 'POST',
                     body: formData
                 }, 3, 2000);
+
                 const data = await response.json();
+
                 if (data.success) {
                     updateStartButton();
                 } else {
-                    alert('Upload failed: ' + data.error);
+                    alert('上传失败: ' + data.error);
                 }
             } catch (e) {
-                alert('Upload failed: ' + e.message);
+                alert('上传失败: ' + e.message);
             }
         }
 
@@ -854,91 +1865,109 @@
 
         async function startAudit() {
             const useMock = document.getElementById('useMockCheck').checked;
-            document.getElementById('uploadSection').classList.add('hidden');
-            document.getElementById('progressSection').classList.remove('hidden');
-            document.getElementById('placeholderSection').classList.add('hidden');
+
+            document.getElementById('uploadSection').classList.add('hidden-view');
+            document.getElementById('progressSection').classList.remove('hidden-view');
+            document.getElementById('placeholderSection').classList.add('hidden-view');
+
             try {
                 const response = await fetchWithRetry(API_BASE + '/tender/audit', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ task_id: currentTaskId, use_mock: useMock })
                 }, 3, 1000);
+
                 const data = await response.json();
+
                 if (data.success) {
+                    pollCount = 0;
                     pollInterval = setInterval(pollStatus, 1000);
                 } else {
-                    alert('Start audit failed: ' + data.error);
+                    alert('开始审核失败: ' + data.error);
                 }
             } catch (e) {
-                alert('Start audit failed: ' + e.message);
+                alert('开始审核失败: ' + e.message);
             }
         }
 
+        let pollCount = 0;
+        const MAX_POLL_COUNT = 300; // 5 分钟超时
+
         async function pollStatus() {
+            pollCount++;
+            if (pollCount > MAX_POLL_COUNT) {
+                clearInterval(pollInterval);
+                alert('审核超时，请检查后台状态');
+                return;
+            }
+
             try {
                 const response = await fetch(API_BASE + '/tender/status/' + currentTaskId);
                 const data = await response.json();
+
                 if (data.success) {
                     updateProgressUI(data.data);
+
                     if (data.data.status === 'completed') {
                         clearInterval(pollInterval);
                         loadReport();
                     } else if (data.data.status === 'failed') {
                         clearInterval(pollInterval);
-                        alert('Audit failed: ' + data.data.error);
+                        alert('审核失败: ' + (data.data.error || '未知错误'));
                     }
                 }
             } catch (e) {
-                console.error('Polling failed:', e);
+                // 网络错误不中断轮询，连续失败 5 次后提示
+                if (pollCount % 5 === 0) {
+                    console.error('轮询失败 (' + pollCount + '):', e);
+                }
             }
         }
 
         function updateProgressUI(taskData) {
             document.getElementById('statusMessage').textContent = taskData.message;
+
             for (let i = 1; i <= 5; i++) {
                 const stageEl = document.getElementById('stage' + i);
-                const circle = stageEl.querySelector('div');
                 if (i < taskData.current_stage) {
-                    stageEl.classList.remove('text-gray-400');
-                    stageEl.classList.add('text-green-600');
-                    circle.classList.remove('border-gray-300');
-                    circle.classList.add('bg-green-500', 'border-green-500');
-                    circle.innerHTML = '<i data-lucide="check" class="w-3 h-3 text-white"></i>';
+                    stageEl.classList.remove('text-gray-500');
+                    stageEl.classList.add('completed');
                 } else if (i === taskData.current_stage) {
-                    stageEl.classList.remove('text-gray-400');
-                    stageEl.classList.add('text-slate-900');
-                    circle.classList.remove('border-gray-300');
-                    circle.classList.add('border-slate-900', 'bg-slate-900', 'text-white');
+                    stageEl.classList.remove('text-gray-500');
+                    stageEl.classList.add('active');
                 }
             }
-            lucide.createIcons();
         }
 
         async function loadReport() {
             try {
                 const response = await fetchWithRetry(API_BASE + '/tender/report/' + currentTaskId, {}, 3, 1000);
                 const data = await response.json();
+
                 if (data.success) {
-                    document.getElementById('progressSection').classList.add('hidden');
-                    document.getElementById('resultSection').classList.remove('hidden');
+                    document.getElementById('progressSection').classList.add('hidden-view');
+                    document.getElementById('resultSection').classList.remove('hidden-view');
+
                     const report = data.data.report;
                     document.getElementById('scoreValue').textContent = report.overall_compliance_score || 0;
+
                     const riskLevel = document.getElementById('riskLevel');
-                    riskLevel.textContent = report.risk_level || 'Unknown';
-                    riskLevel.className = 'px-2 py-1 rounded text-xs font-medium';
+                    riskLevel.textContent = report.risk_level || '未知';
+
                     if (report.risk_level === '高风险' || report.risk_level === 'High') {
-                        riskLevel.classList.add('bg-red-100', 'text-red-700');
+                        riskLevel.className = 'badge-error';
                     } else if (report.risk_level === '中风险' || report.risk_level === 'Medium') {
-                        riskLevel.classList.add('bg-yellow-100', 'text-yellow-700');
+                        riskLevel.className = 'badge-warning';
                     } else {
-                        riskLevel.classList.add('bg-green-100', 'text-green-700');
+                        riskLevel.className = 'badge-success';
                     }
+
                     if (data.data.markdown) {
                         document.getElementById('reportContent').innerHTML = marked.parse(data.data.markdown);
                     }
                 }
             } catch (e) {
-                alert('Load report failed: ' + e.message);
+                alert('加载报告失败: ' + e.message);
             }
         }
 
@@ -946,9 +1975,7 @@
             window.open(API_BASE + '/tender/download/' + currentTaskId + '?format=' + format, '_blank');
         }
 
-        // Quote Audit Functions
-        let quoteFile = null;
-
+        // ==================== 报价审核 ====================
         function handleQuoteDrop(e) {
             e.preventDefault();
             e.currentTarget.classList.remove('drag-over');
@@ -963,24 +1990,71 @@
 
         async function processQuoteFile(file) {
             if (!file.name.toLowerCase().endsWith('.xls') && !file.name.toLowerCase().endsWith('.xlsx')) {
-                alert('Please upload Excel file (.xls or .xlsx)');
+                alert('请上传 Excel 文件 (.xls 或 .xlsx)');
                 return;
             }
+
             quoteFile = file;
-            document.getElementById('quoteFileName').textContent = '✓ ' + file.name;
-            document.getElementById('quoteFileName').classList.remove('hidden');
+
+            const uploadIcon = document.getElementById('quoteUploadIcon');
+            const uploadText = document.getElementById('quoteUploadText');
+            const fileCard = document.getElementById('quoteFileCard');
+            const fileName = document.getElementById('quoteFileName');
+            const fileSize = document.getElementById('quoteFileSize');
+            const statusPill = document.getElementById('quoteStatusPill');
+
+            uploadIcon.innerHTML = '<i data-lucide="file-check" class="w-6 h-6 text-green-400"></i>';
+            uploadText.textContent = file.name;
+            uploadText.classList.add('text-cyan-400');
+
+            fileCard.classList.remove('hidden-view');
+            fileName.textContent = file.name;
+            fileSize.textContent = formatFileSize(file.size);
+
+            statusPill.classList.remove('hidden-view');
+            statusPill.innerHTML = '<span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-green-400"></span><span>文件已选择</span></span>';
+            statusPill.className = 'badge-success px-3 py-1.5 rounded-full text-sm';
+
             document.getElementById('startQuoteAuditBtn').disabled = false;
+
+            lucide.createIcons();
+        }
+
+        function clearQuoteFile() {
+            quoteFile = null;
+
+            const uploadIcon = document.getElementById('quoteUploadIcon');
+            const uploadText = document.getElementById('quoteUploadText');
+            const fileCard = document.getElementById('quoteFileCard');
+            const statusPill = document.getElementById('quoteStatusPill');
+            const startBtn = document.getElementById('startQuoteAuditBtn');
+
+            uploadIcon.innerHTML = '<i data-lucide="upload" class="w-6 h-6 text-gray-500"></i>';
+            uploadText.textContent = '拖放 Excel 文件';
+            uploadText.classList.remove('text-cyan-400');
+            fileCard.classList.add('hidden-view');
+            statusPill.classList.add('hidden-view');
+            startBtn.disabled = false;
+            document.getElementById('quoteFileInput').value = '';
+
+            lucide.createIcons();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         }
 
         async function startQuoteAudit() {
             if (!quoteFile) {
-                alert('Please select a quote file');
+                alert('请选择报价文件');
                 return;
             }
 
             const projectName = document.getElementById('quoteProjectName').value.trim();
             if (!projectName) {
-                alert('Please enter project name');
+                alert('请输入项目名称');
                 return;
             }
 
@@ -993,106 +2067,703 @@
             if (totalRT) formData.append('total_rt', parseFloat(totalRT));
             if (buildingArea) formData.append('building_area', parseFloat(buildingArea));
 
-            document.getElementById('startQuoteAuditBtn').disabled = true;
-            document.getElementById('startQuoteAuditBtn').textContent = 'Auditing...';
+            const startBtn = document.getElementById('startQuoteAuditBtn');
+            const statusPill = document.getElementById('quoteStatusPill');
+            const progressSection = document.getElementById('quoteProgressSection');
+            const placeholderSection = document.getElementById('quotePlaceholderSection');
+            const resultSection = document.getElementById('quoteResultSection');
+
+            // 重置所有阶段的状态
+            resetQuoteStages();
+
+            startBtn.disabled = true;
+            startBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span class="ml-2">审核中...</span>';
+
+            statusPill.innerHTML = '<span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span><span>审核中...</span></span>';
+            statusPill.className = 'badge-warning px-3 py-1.5 rounded-full text-sm';
+
+            // 确保结果区域被隐藏
+            resultSection.classList.add('hidden-view');
+            placeholderSection.classList.add('hidden-view');
+            progressSection.classList.remove('hidden-view');
+
+            lucide.createIcons();
+            animateProgress();
 
             try {
                 const response = await fetchWithRetry(API_BASE + '/quote/audit', {
                     method: 'POST',
                     body: formData
-                }, 3, 5000);
+                }, 3, 30000);
 
                 const data = await response.json();
 
                 if (data.success) {
                     showQuoteResult(data.data);
                 } else {
-                    alert('Audit failed: ' + (data.error || data.detail));
+                    alert('审核失败: ' + (data.error || data.detail));
+                    resetQuoteUI();
                 }
             } catch (e) {
-                alert('Audit failed: ' + e.message);
-            } finally {
-                document.getElementById('startQuoteAuditBtn').disabled = false;
-                document.getElementById('startQuoteAuditBtn').textContent = 'Start Audit';
+                alert('审核失败: ' + e.message);
+                resetQuoteUI();
             }
+        }
+
+        function resetQuoteStages() {
+            const stages = ['qStage1', 'qStage2', 'qStage3', 'qStage4', 'qStage5'];
+            stages.forEach(stageId => {
+                const stage = document.getElementById(stageId);
+                if (stage) {
+                    stage.classList.remove('bg-cyan-500/10', 'bg-cyan-500/20');
+                    const circle = stage.querySelector('.bg-cyan-500');
+                    if (circle) {
+                        circle.classList.remove('bg-cyan-500', 'bg-green-500');
+                        circle.classList.add('bg-gray-800');
+                        circle.innerHTML = '';
+                    }
+                    // 恢复 L1-L5 文字
+                    const levelCircle = stage.querySelector('.w-8');
+                    if (levelCircle && !levelCircle.querySelector('[data-lucide]')) {
+                        const level = stageId.replace('qStage', 'L');
+                        levelCircle.innerHTML = '<span class="text-xs">' + level + '</span>';
+                    }
+                }
+            });
+        }
+
+        function animateProgress() {
+            const stages = ['qStage1', 'qStage2', 'qStage3', 'qStage4', 'qStage5'];
+            stages.forEach((stageId, idx) => {
+                setTimeout(() => {
+                    const stage = document.getElementById(stageId);
+                    stage.classList.add('bg-cyan-500/10');
+                    const circle = stage.querySelector('.bg-gray-800');
+                    if (circle) {
+                        circle.classList.remove('bg-gray-800');
+                        circle.classList.add('bg-cyan-500');
+                    }
+                }, idx * 300);
+            });
+        }
+
+        function resetQuoteUI() {
+            const startBtn = document.getElementById('startQuoteAuditBtn');
+            const statusPill = document.getElementById('quoteStatusPill');
+            const progressSection = document.getElementById('quoteProgressSection');
+            const placeholderSection = document.getElementById('quotePlaceholderSection');
+            const resultSection = document.getElementById('quoteResultSection');
+
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i data-lucide="shield-check" class="w-4 h-4"></i><span class="ml-2">开始审核</span>';
+
+            // 重置所有阶段状态
+            resetQuoteStages();
+
+            progressSection.classList.add('hidden-view');
+            resultSection.classList.add('hidden-view');
+            placeholderSection.classList.remove('hidden-view');
+            lucide.createIcons();
         }
 
         function showQuoteResult(report) {
-            document.getElementById('quotePlaceholderSection').classList.add('hidden');
-            document.getElementById('quoteResultSection').classList.remove('hidden');
+            // 存储报告数据供下载和筛选使用
+            window.currentQuoteReport = report;
+            currentReportIssues = report.issues || [];
 
-            // Update status badge
-            const statusEl = document.getElementById('quoteStatus');
-            statusEl.textContent = report.overall_status === 'pass' ? 'Pass' :
-                                   report.overall_status === 'conditional_pass' ? 'Conditional Pass' : 'Fail';
-            statusEl.className = 'px-2 py-1 rounded text-xs font-medium ' +
-                (report.overall_status === 'pass' ? 'bg-green-100 text-green-700' :
-                 report.overall_status === 'conditional_pass' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700');
+            const statusPill = document.getElementById('quoteStatusPill');
+            const progressSection = document.getElementById('quoteProgressSection');
+            const placeholderSection = document.getElementById('quotePlaceholderSection');
+            const resultSection = document.getElementById('quoteResultSection');
 
-            // Update stats
-            document.getElementById('quoteTotalItems').textContent = report.total_items || 0;
-            document.getElementById('quotePassRate').textContent = report.pass_rate ? (parseFloat(report.pass_rate) * 100).toFixed(1) + '%' : '0%';
-            document.getElementById('quoteFatalCount').textContent = (report.fatal_count || 0) + ' Fatal';
-            document.getElementById('quoteMajorCount').textContent = (report.major_count || 0) + ' Major';
-            document.getElementById('quoteWarningCount').textContent = (report.warning_count || 0) + ' Warning';
+            // 更新进度条显示实际章节信息
+            const sections = report.sections || [];
+            const stageDescs = [
+                { name: '数据清洗', desc: `解析 ${sections.length} 个章节` },
+                { name: '合规检查', desc: `检查清单项套用定额` },
+                { name: '算术校验', desc: `验证工程量与单价计算` },
+                { name: '造价指标', desc: `分析费用占比与指标` },
+                { name: '报告生成', desc: `汇总问题与建议` }
+            ];
 
-            // Render markdown content
-            if (report.markdown) {
-                document.getElementById('quoteReportContent').innerHTML = marked.parse(report.markdown);
-            } else if (report.issues && report.issues.length > 0) {
-                let html = '<h3>Issues Found</h3><ul>';
-                report.issues.slice(0, 50).forEach(issue => {
-                    html += '<li><strong>[' + issue.severity + ']</strong> ' + issue.message + '</li>';
-                });
-                html += '</ul>';
-                document.getElementById('quoteReportContent').innerHTML = html;
+            const stages = ['qStage1', 'qStage2', 'qStage3', 'qStage4', 'qStage5'];
+            stages.forEach((stageId, idx) => {
+                const stage = document.getElementById(stageId);
+                stage.classList.add('bg-cyan-500/20');
+                const circle = stage.querySelector('.bg-cyan-500');
+                const nameEl = stage.querySelector('.text-sm');
+                const descEl = stage.querySelector('.text-xs.text-gray-500');
+                if (nameEl) nameEl.textContent = stageDescs[idx].name;
+                if (descEl) descEl.textContent = stageDescs[idx].desc;
+                if (circle) {
+                    circle.classList.remove('bg-cyan-500');
+                    circle.classList.add('bg-green-500');
+                    circle.innerHTML = '<i data-lucide="check" class="w-4 h-4 text-white"></i>';
+                }
+            });
+
+            const status = report.overall_status;
+            let statusClass, statusText, statusIcon;
+
+            if (status === 'pass') {
+                statusClass = 'badge-success';
+                statusText = '审核通过';
+                statusIcon = 'shield-check';
+            } else if (status === 'conditional_pass') {
+                statusClass = 'badge-warning';
+                statusText = '有条件通过';
+                statusIcon = 'shield-alert';
+            } else {
+                statusClass = 'badge-error';
+                statusText = '审核失败';
+                statusIcon = 'shield-x';
+            }
+
+            statusPill.innerHTML = '<span class="inline-flex items-center gap-2"><i data-lucide="' + statusIcon + '" class="w-4 h-4"></i><span>' + statusText + '</span></span>';
+            statusPill.className = statusClass + ' px-3 py-1.5 rounded-full text-sm';
+
+            progressSection.classList.add('hidden-view');
+            placeholderSection.classList.add('hidden-view');
+            resultSection.classList.remove('hidden-view');
+
+            // 恢复开始按钮
+            const startBtn = document.getElementById('startQuoteAuditBtn');
+            startBtn.disabled = false;
+            startBtn.innerHTML = '<i data-lucide="shield-check" class="w-4 h-4"></i><span class="ml-2">开始审核</span>';
+
+            const statusIconEl = document.getElementById('quoteStatusIcon');
+            const overallStatus = document.getElementById('quoteOverallStatus');
+            const projectNameDisplay = document.getElementById('quoteProjectNameDisplay');
+
+            overallStatus.textContent = statusText;
+            projectNameDisplay.textContent = report.project_name || '';
+
+            if (status === 'pass') {
+                statusIconEl.innerHTML = '<i data-lucide="shield-check" class="w-6 h-6 text-green-400"></i>';
+            } else if (status === 'conditional_pass') {
+                statusIconEl.innerHTML = '<i data-lucide="shield-alert" class="w-6 h-6 text-orange-400"></i>';
+            } else {
+                statusIconEl.innerHTML = '<i data-lucide="shield-x" class="w-6 h-6 text-red-400"></i>';
+            }
+
+            const passRate = report.pass_rate ? (parseFloat(report.pass_rate) * 100).toFixed(1) : '0';
+            document.getElementById('quotePassRateDisplay').textContent = passRate + '%';
+
+            document.getElementById('quoteTotalItemsDisplay').textContent = report.total_items || 0;
+            document.getElementById('quoteFatalDisplay').textContent = report.fatal_count || 0;
+            document.getElementById('quoteMajorDisplay').textContent = report.major_count || 0;
+            document.getElementById('quoteWarningDisplay').textContent = report.warning_count || 0;
+
+            renderCostBreakdown(report);
+            renderUnitCostMetrics(report);
+            // 渲染章节清单
+            window.currentQuoteSections = report.sections || [];
+            renderSectionsList(window.currentQuoteSections, report.compliance_findings || [], report.arithmetic_errors || []);
+
+            lucide.createIcons();
+        }
+
+        function renderCostBreakdown(report) {
+            const chart = document.getElementById('costBreakdownChart');
+            const summaries = report.summaries || [];
+
+            if (summaries.length === 0) {
+                chart.innerHTML = '<p class="text-gray-500 text-sm text-center">暂无费用汇总数据</p>';
+                return;
+            }
+
+            const summary = summaries[0];
+            const grandTotal = parseFloat(summary.grand_total) || 1;
+            const material = parseFloat(summary.subtotal_material) || 0;
+            const labor = parseFloat(summary.subtotal_labor) || 0;
+            const measures = parseFloat(summary.measures_cost) || 0;
+            const tax = parseFloat(summary.tax) || 0;
+
+            const materialPct = (material / grandTotal * 100).toFixed(1);
+            const laborPct = (labor / grandTotal * 100).toFixed(1);
+            const measuresPct = (measures / grandTotal * 100).toFixed(1);
+            const taxPct = (tax / grandTotal * 100).toFixed(1);
+
+            document.getElementById('costMaterial').textContent = materialPct + '%';
+            document.getElementById('costLabor').textContent = laborPct + '%';
+            document.getElementById('costMeasures').textContent = measuresPct + '%';
+            document.getElementById('costTax').textContent = taxPct + '%';
+
+            const maxHeight = 120;
+            chart.innerHTML = `
+                <div class="flex-1 flex flex-col items-center justify-end">
+                    <div class="w-full bg-blue-500/30 rounded-t-lg" style="height: ${(material / grandTotal * maxHeight).toFixed(0)}px"></div>
+                </div>
+                <div class="flex-1 flex flex-col items-center justify-end">
+                    <div class="w-full bg-emerald-500/30 rounded-t-lg" style="height: ${(labor / grandTotal * maxHeight).toFixed(0)}px"></div>
+                </div>
+                <div class="flex-1 flex flex-col items-center justify-end">
+                    <div class="w-full bg-purple-500/30 rounded-t-lg" style="height: ${(measures / grandTotal * maxHeight).toFixed(0)}px"></div>
+                </div>
+                <div class="flex-1 flex flex-col items-center justify-end">
+                    <div class="w-full bg-cyan-500/30 rounded-t-lg" style="height: ${(tax / grandTotal * maxHeight).toFixed(0)}px"></div>
+                </div>
+            `;
+        }
+
+        function renderUnitCostMetrics(report) {
+            const section = document.getElementById('unitCostSection');
+            const costIndices = report.cost_indices || [];
+
+            if (costIndices.length === 0) {
+                section.classList.add('hidden-view');
+                return;
+            }
+
+            section.classList.remove('hidden-view');
+            const index = costIndices[0];
+
+            if (index.unit_cost_per_rt) {
+                document.getElementById('costPerRT').textContent = parseFloat(index.unit_cost_per_rt).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
+            }
+            if (index.unit_cost_per_sqm) {
+                document.getElementById('costPerSqm').textContent = parseFloat(index.unit_cost_per_sqm).toLocaleString('zh-CN', { maximumFractionDigits: 2 });
             }
         }
 
+        // 渲染章节清单列表
+        function renderSectionsList(sections, complianceFindings, arithmeticErrors) {
+            const list = document.getElementById('quoteSectionsList');
+            const countEl = document.getElementById('quoteSectionCount');
+
+            countEl.textContent = sections.length + ' 个章节';
+
+            if (!sections || sections.length === 0) {
+                list.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">暂无清单数据</p>';
+                return;
+            }
+
+            // 为每个章节创建问题映射
+            const findingsMap = {};
+            (complianceFindings || []).forEach(f => {
+                if (!findingsMap[f.item_sequence]) findingsMap[f.item_sequence] = [];
+                findingsMap[f.item_sequence].push(f);
+            });
+
+            const errorsMap = {};
+            (arithmeticErrors || []).forEach(e => {
+                if (!errorsMap[e.item_sequence]) errorsMap[e.item_sequence] = [];
+                errorsMap[e.item_sequence].push(e);
+            });
+
+            list.innerHTML = sections.map((section, sIdx) => {
+                const sectionErrors = section.errors || [];
+                const sectionItems = section.items || [];
+                const hasErrors = sectionErrors.length > 0;
+
+                return `
+                <div class="rounded-xl bg-white/5 overflow-hidden animate-fade-in" style="animation-delay: ${sIdx * 50}ms">
+                    <div class="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                         onclick="toggleSection('section-${sIdx}')">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-lg ${hasErrors ? 'bg-orange-500/20' : 'bg-cyan-500/20'} flex items-center justify-center">
+                                <i data-lucide="${hasErrors ? 'alert-triangle' : 'check-circle'}" class="w-5 h-5 ${hasErrors ? 'text-orange-400' : 'text-cyan-400'}"></i>
+                            </div>
+                            <div>
+                                <div class="font-medium text-sm">${section.section_name || '未命名章节'}</div>
+                                <div class="text-xs text-gray-500">${sectionItems.length} 项清单 · ${sectionErrors.length} 个问题</div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <div class="text-right">
+                                <div class="text-xs text-gray-500">小计</div>
+                                <div class="text-sm font-medium text-cyan-400">¥${formatNumber(section.subtotal_material + section.subtotal_labor)}</div>
+                            </div>
+                            <i data-lucide="chevron-down" class="w-4 h-4 text-gray-500 transition-transform" id="chevron-section-${sIdx}"></i>
+                        </div>
+                    </div>
+                    <div id="section-${sIdx}" class="hidden-view">
+                        <div class="border-t border-white/10">
+                            ${sectionItems.length > 0 ? `
+                            <div class="max-h-60 overflow-y-auto scrollbar-default">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-white/5 sticky top-0">
+                                        <tr class="text-gray-500">
+                                            <th class="text-left p-2">序号</th>
+                                            <th class="text-left p-2">项目名称</th>
+                                            <th class="text-right p-2">单位</th>
+                                            <th class="text-right p-2">数量</th>
+                                            <th class="text-right p-2">材料单价</th>
+                                            <th class="text-right p-2">人工单价</th>
+                                            <th class="text-right p-2">材料合价</th>
+                                            <th class="text-right p-2">人工合价</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${sectionItems.map((item, iIdx) => {
+                                            const itemFindings = findingsMap[item.sequence] || [];
+                                            const itemErrors = errorsMap[item.sequence] || [];
+                                            const hasIssue = itemFindings.length > 0 || itemErrors.length > 0;
+                                            return `
+                                            <tr class="border-t border-white/5 hover:bg-white/5 ${hasIssue ? 'bg-orange-500/10' : ''}">
+                                                <td class="p-2 ${hasIssue ? 'text-orange-400' : ''}">${item.sequence || iIdx + 1}</td>
+                                                <td class="p-2 max-w-[200px] truncate" title="${item.item_name}">${item.item_name || '-'}</td>
+                                                <td class="p-2 text-right">${item.unit || '-'}</td>
+                                                <td class="p-2 text-right">${item.quantity != null ? item.quantity.toFixed(2) : '-'}</td>
+                                                <td class="p-2 text-right">${item.material_unit_price != null ? '¥' + item.material_unit_price.toFixed(2) : '-'}</td>
+                                                <td class="p-2 text-right">${item.labor_unit_price != null ? '¥' + item.labor_unit_price.toFixed(2) : '-'}</td>
+                                                <td class="p-2 text-right">${item.material_total != null ? '¥' + item.material_total.toFixed(2) : '-'}</td>
+                                                <td class="p-2 text-right">${item.labor_total != null ? '¥' + item.labor_total.toFixed(2) : '-'}</td>
+                                            </tr>
+                                            ${hasIssue ? `
+                                            <tr class="border-t border-orange-500/30 bg-orange-500/5">
+                                                <td colspan="8" class="p-2">
+                                                    <div class="flex flex-wrap gap-2">
+                                                        ${itemFindings.map(f => `
+                                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-500/20 text-orange-400 text-xs">
+                                                                <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                                                ${f.message || f.finding_type}
+                                                            </span>
+                                                        `).join('')}
+                                                        ${itemErrors.map(e => `
+                                                            <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-500/20 text-red-400 text-xs">
+                                                                <i data-lucide="alert-octagon" class="w-3 h-3"></i>
+                                                                ${e.error_type}: ${e.expected} → ${e.actual}
+                                                            </span>
+                                                        `).join('')}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            ` : ''}
+                                        `}).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            ` : '<p class="text-gray-500 text-sm p-4">暂无清单项</p>'}
+                            ${sectionErrors.length > 0 ? `
+                            <div class="p-3 border-t border-white/10 bg-orange-500/10">
+                                <div class="text-xs text-orange-400 mb-2 flex items-center gap-1">
+                                    <i data-lucide="alert-triangle" class="w-3 h-3"></i>
+                                    章节汇总问题 (${sectionErrors.length})
+                                </div>
+                                <div class="space-y-1">
+                                    ${sectionErrors.map(err => `
+                                        <div class="text-xs text-gray-400">${err.error_type || 'error'}: ${err.message || JSON.stringify(err)}</div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const chevron = document.getElementById('chevron-' + sectionId);
+            if (section.classList.contains('hidden-view')) {
+                section.classList.remove('hidden-view');
+                if (chevron) chevron.style.transform = 'rotate(180deg)';
+            } else {
+                section.classList.add('hidden-view');
+                if (chevron) chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function formatNumber(num) {
+            if (num == null) return '0';
+            if (num >= 10000) return (num / 10000).toFixed(2) + '万';
+            return num.toFixed(2);
+        }
+
+        // ==================== 面板调整大小 ====================
         const resizeHandle = document.getElementById('resizeHandle');
         const chatTop = document.getElementById('chatTop');
         const chatBottom = document.getElementById('chatBottom');
         let isResizing = false;
-        
+
         const MIN_BOTTOM_HEIGHT = 80;
-        const MIN_TOP_HEIGHT = 100;
-        const RESIZE_HANDLE_HEIGHT = 8;
+        const MIN_TOP_HEIGHT = 150;
 
-        resizeHandle.addEventListener('mousedown', function(e) {
-            e.preventDefault();
-            isResizing = true;
-            resizeHandle.classList.add('active');
-            document.body.style.cursor = 'row-resize';
-            document.body.style.userSelect = 'none';
-        });
+        if (resizeHandle) {
+            resizeHandle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                isResizing = true;
+                resizeHandle.classList.add('active');
+                document.body.style.cursor = 'row-resize';
+                document.body.style.userSelect = 'none';
+            });
 
-        document.addEventListener('mousemove', function(e) {
-            if (!isResizing) return;
-            
-            const container = chatTop.parentElement;
-            const containerRect = container.getBoundingClientRect();
-            
-            const availableHeight = containerRect.height - RESIZE_HANDLE_HEIGHT;
-            const maxBottomHeight = availableHeight - MIN_TOP_HEIGHT;
-            
-            let bottomHeight = containerRect.bottom - e.clientY;
-            
-            bottomHeight = Math.max(MIN_BOTTOM_HEIGHT, Math.min(bottomHeight, maxBottomHeight));
-            
-            chatBottom.style.height = bottomHeight + 'px';
-        });
+            document.addEventListener('mousemove', function(e) {
+                if (!isResizing) return;
 
-        document.addEventListener('mouseup', function() {
-            if (isResizing) {
-                isResizing = false;
-                resizeHandle.classList.remove('active');
-                document.body.style.cursor = '';
-                document.body.style.userSelect = '';
+                const container = chatTop.parentElement;
+                const containerRect = container.getBoundingClientRect();
+
+                const maxBottomHeight = containerRect.height - MIN_TOP_HEIGHT - 4;
+
+                let bottomHeight = containerRect.bottom - e.clientY;
+                bottomHeight = Math.max(MIN_BOTTOM_HEIGHT, Math.min(bottomHeight, maxBottomHeight));
+
+                chatBottom.style.height = bottomHeight + 'px';
+            });
+
+            document.addEventListener('mouseup', function() {
+                if (isResizing) {
+                    isResizing = false;
+                    resizeHandle.classList.remove('active');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+
+        // ==================== 标书审核结果区域拖拽调节 ====================
+        const tenderResizeHandle = document.querySelector('.tender-resize-handle');
+        const resultSection = document.getElementById('resultSection');
+        let isTenderResizing = false;
+
+        const MIN_TENDER_HEIGHT = 400;
+
+        if (tenderResizeHandle && resultSection) {
+            tenderResizeHandle.addEventListener('mousedown', function(e) {
+                e.preventDefault();
+                isTenderResizing = true;
+                tenderResizeHandle.classList.add('active');
+                document.body.style.cursor = 'row-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isTenderResizing) return;
+
+                const resultCard = resultSection.querySelector('.glass-card');
+                if (!resultCard) return;
+
+                const rect = resultCard.getBoundingClientRect();
+                const container = resultSection.parentElement;
+                const containerRect = container.getBoundingClientRect();
+
+                // 计算新的最小高度
+                const newMinHeight = containerRect.bottom - e.clientY - 12; // 12px padding
+
+                if (newMinHeight >= MIN_TENDER_HEIGHT) {
+                    resultSection.style.minHeight = newMinHeight + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', function() {
+                if (isTenderResizing) {
+                    isTenderResizing = false;
+                    tenderResizeHandle.classList.remove('active');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+
+        // ==================== 问题清单按 Severity 筛选 ====================
+        let currentReportIssues = [];
+
+        function showIssuesBySeverity(severity) {
+            const modal = document.getElementById('issuesModal');
+            const modalTitle = document.getElementById('issuesModalTitle');
+            const modalContent = document.getElementById('issuesModalContent');
+
+            const severityLabels = {
+                fatal: '致命',
+                major: '重大',
+                warning: '警告',
+                info: '提示'
+            };
+
+            const severityIcons = {
+                fatal: 'alert-octagon',
+                major: 'alert-triangle',
+                warning: 'alert-circle',
+                info: 'info'
+            };
+
+            const severityColors = {
+                fatal: 'text-red-400',
+                major: 'text-orange-400',
+                warning: 'text-yellow-400',
+                info: 'text-blue-400'
+            };
+
+            // 构建所有原始清单项的查找表 (sequence -> item)
+            const allItemsMap = {};
+            const sections = window.currentQuoteSections || [];
+            sections.forEach(section => {
+                (section.items || []).forEach(item => {
+                    if (item.sequence) {
+                        allItemsMap[item.sequence] = item;
+                    }
+                });
+            });
+
+            // 根据 issue 匹配原始清单项
+            function findRelatedItems(issue) {
+                const found = [];
+                const loc = issue.location || '';
+                const msg = issue.message || '';
+                const combined = loc + ' ' + msg;
+
+                // 尝试从 location/message 中提取序号
+                const seqMatch = combined.match(/(\d{1,4})/g);
+                if (seqMatch) {
+                    seqMatch.forEach(seq => {
+                        if (allItemsMap[seq] && !found.includes(allItemsMap[seq])) {
+                            found.push(allItemsMap[seq]);
+                        }
+                    });
+                }
+
+                // 如果没有匹配到，尝试按名称模糊匹配
+                if (found.length === 0) {
+                    Object.values(allItemsMap).forEach(item => {
+                        if (item.item_name && combined.includes(item.item_name.substring(0, 4))) {
+                            found.push(item);
+                        }
+                    });
+                    // 只保留前3个以避免过多
+                    if (found.length > 3) found.length = 3;
+                }
+
+                return found;
+            }
+
+            const filteredIssues = currentReportIssues.filter(issue => issue.severity === severity);
+
+            modalTitle.innerHTML = '<i data-lucide="' + (severityIcons[severity] || 'alert-circle') + '" class="w-5 h-5 ' + (severityColors[severity] || 'text-yellow-400') + '"></i> ' + severityLabels[severity] + '问题 (' + filteredIssues.length + ')';
+
+            if (filteredIssues.length === 0) {
+                modalContent.innerHTML = '<p class="text-gray-500 text-center py-8">暂无' + severityLabels[severity] + '问题</p>';
+            } else {
+                modalContent.innerHTML = filteredIssues.map((issue, idx) => {
+                    const relatedItems = findRelatedItems(issue);
+                    const locationText = issue.location ? issue.location : (relatedItems.length > 0 ? ('第' + relatedItems.map(it => it.sequence).join('、') + '项') : '');
+
+                    return `
+                    <div class="p-4 rounded-xl bg-white/5 animate-fade-in" style="animation-delay: ${idx * 30}ms">
+                        <div class="flex items-start gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 ${severityColors[issue.severity] || severityColors.warning}">
+                                <i data-lucide="${severityIcons[issue.severity] || 'alert-circle'}" class="w-4 h-4"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span class="text-xs font-medium ${severityColors[issue.severity] || severityColors.warning}">${(issue.severity || 'WARNING').toUpperCase()}</span>
+                                    <span class="text-xs text-gray-500">${issue.category || ''}</span>
+                                    ${locationText ? '<span class="text-xs text-gray-600">📍 ' + locationText + '</span>' : ''}
+                                </div>
+                                <p class="text-sm leading-relaxed">${issue.message || ''}</p>
+                                ${issue.suggestion ? '<p class="text-xs text-cyan-400 mt-2">💡 建议: ' + issue.suggestion + '</p>' : ''}
+                            </div>
+                        </div>
+                        ${relatedItems.length > 0 ? `
+                        <div class="mt-3 ml-11 border-t border-white/10 pt-3">
+                            <div class="text-xs text-gray-500 mb-2 flex items-center gap-1">
+                                <i data-lucide="file-spreadsheet" class="w-3 h-3"></i>
+                                关联原始清单项 (${relatedItems.length})
+                            </div>
+                            <div class="max-h-48 overflow-y-auto scrollbar-default">
+                                <table class="w-full text-xs">
+                                    <thead class="bg-white/5">
+                                        <tr class="text-gray-500">
+                                            <th class="text-left p-1.5">序号</th>
+                                            <th class="text-left p-1.5">项目名称</th>
+                                            <th class="text-right p-1.5">单位</th>
+                                            <th class="text-right p-1.5">数量</th>
+                                            <th class="text-right p-1.5">材料单价</th>
+                                            <th class="text-right p-1.5">人工单价</th>
+                                            <th class="text-right p-1.5">材料合价</th>
+                                            <th class="text-right p-1.5">人工合价</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${relatedItems.map(item => `
+                                            <tr class="border-t border-white/5">
+                                                <td class="p-1.5">${item.sequence || '-'}</td>
+                                                <td class="p-1.5 max-w-[150px] truncate" title="${item.item_name || ''}">${item.item_name || '-'}</td>
+                                                <td class="p-1.5 text-right">${item.unit || '-'}</td>
+                                                <td class="p-1.5 text-right">${item.quantity != null ? item.quantity.toFixed(2) : '-'}</td>
+                                                <td class="p-1.5 text-right">${item.material_unit_price != null ? '¥' + item.material_unit_price.toFixed(2) : '-'}</td>
+                                                <td class="p-1.5 text-right">${item.labor_unit_price != null ? '¥' + item.labor_unit_price.toFixed(2) : '-'}</td>
+                                                <td class="p-1.5 text-right">${item.material_total != null ? '¥' + item.material_total.toFixed(2) : '-'}</td>
+                                                <td class="p-1.5 text-right">${item.labor_total != null ? '¥' + item.labor_total.toFixed(2) : '-'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    `;
+                }).join('');
+            }
+
+            modal.classList.remove('hidden-view');
+            lucide.createIcons();
+        }
+
+        function closeIssuesModal() {
+            const modal = document.getElementById('issuesModal');
+            modal.classList.add('hidden-view');
+        }
+
+        // 点击模态框背景关闭
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('issuesModal');
+            if (e.target === modal) {
+                closeIssuesModal();
             }
         });
 
-        initChat();
-        loadTools();
+        // ==================== 报价审核结果下载 ====================
+        function downloadQuoteReport() {
+            const report = window.currentQuoteReport;
+            if (!report) {
+                alert('暂无报告数据');
+                return;
+            }
+
+            const dataStr = JSON.stringify(report, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = '报价审核报告_' + (report.project_name || '未命名') + '_' + new Date().toISOString().slice(0, 10) + '.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ==================== 启动 ====================
+        initConversations();
     </script>
+
+    <!-- 问题清单筛选模态框 -->
+    <div id="issuesModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden-view flex items-center justify-center p-4" onclick="closeIssuesModal()">
+        <div class="glass-card w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col" onclick="event.stopPropagation()">
+            <div class="flex items-center justify-between p-4 border-b border-white/10">
+                <h3 class="text-lg font-medium flex items-center gap-2" id="issuesModalTitle">
+                    <i data-lucide="list-filter" class="w-5 h-5 text-cyan-400"></i>
+                    问题列表
+                </h3>
+                <button onclick="closeIssuesModal()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div id="issuesModalContent" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-default">
+                <!-- 动态填充 -->
+            </div>
+            <div class="p-4 border-t border-white/10 flex justify-end">
+                <button onclick="closeIssuesModal()" class="btn-ghost text-sm">
+                    关闭
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

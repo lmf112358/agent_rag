@@ -11,6 +11,7 @@ from backend.services.rag_service import RAGService
 from backend.services.memory_service import MemoryService
 from backend.services.agent_service import AgentService
 from backend.services.quote_service import QuoteAuditService
+from backend.services.conversation_service import conversation_service
 from backend.services.tender_service import (
     get_tender_service,
     TaskStatus,
@@ -33,6 +34,7 @@ class AgentRequest(BaseModel):
     """Agent请求"""
     query: str = Field(..., description="用户查询内容")
     session_id: Optional[str] = Field(None, description="会话ID")
+    conversation_id: Optional[str] = Field(None, description="对话ID")
     tools: Optional[List[str]] = Field(None, description="指定使用的工具")
 
 
@@ -117,15 +119,38 @@ async def agent_invoke(request: AgentRequest):
     """Agent调用"""
     try:
         service = AgentService()
+        
+        # 如果提供了 conversation_id，保存消息到对话
+        if request.conversation_id:
+            conv = conversation_service.get_conversation(request.conversation_id)
+            if not conv:
+                # 对话不存在，创建它
+                conv = conversation_service.create_conversation()
+                conversation_service.add_message(
+                    conv["id"], "user", request.query, use_markdown=False
+                )
+            else:
+                conversation_service.add_message(
+                    request.conversation_id, "user", request.query, use_markdown=False
+                )
+        
         result = service.invoke(
             query=request.query,
             session_id=request.session_id,
             tools=request.tools
         )
+        
+        # 如果有 conversation_id，也保存助手回复
+        if request.conversation_id and result.get("answer"):
+            conversation_service.add_message(
+                request.conversation_id, "assistant", result.get("answer"), use_markdown=True
+            )
+        
         return Response(
             success=True,
             data=result,
-            session_id=result.get("session_id")
+            session_id=result.get("session_id"),
+            conversation_id=request.conversation_id
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -367,3 +392,109 @@ async def quote_audit(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"审核失败：{str(e)}")
+
+# ==========================================
+# 对话管理API端点
+# ==========================================
+
+class ConversationCreateRequest(BaseModel):
+    """创建对话请求"""
+    title: Optional[str] = Field("新对话", description="对话标题")
+
+
+class ConversationMessageRequest(BaseModel):
+    """对话消息请求"""
+    role: str = Field(..., description="消息角色: user 或 assistant")
+    content: str = Field(..., description="消息内容")
+    use_markdown: bool = Field(False, description="是否使用Markdown")
+
+
+@router.get("/conversations", response_model=Response)
+async def list_conversations():
+    """列出所有对话"""
+    try:
+        conversations = conversation_service.list_conversations()
+        return Response(success=True, data=conversations)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/conversations", response_model=Response)
+async def create_conversation(request: ConversationCreateRequest):
+    """创建新对话"""
+    try:
+        conv = conversation_service.create_conversation(title=request.title or "新对话")
+        return Response(success=True, data=conv)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversations/{conversation_id}", response_model=Response)
+async def get_conversation(conversation_id: str):
+    """获取对话详情"""
+    try:
+        conv = conversation_service.get_conversation(conversation_id)
+        if not conv:
+            raise HTTPException(status_code=404, detail="对话不存在")
+        return Response(success=True, data=conv)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/conversations/{conversation_id}/messages", response_model=Response)
+async def get_conversation_messages(conversation_id: str):
+    """获取对话消息列表"""
+    try:
+        messages = conversation_service.get_messages(conversation_id)
+        return Response(success=True, data=messages)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/conversations/{conversation_id}", response_model=Response)
+async def delete_conversation(conversation_id: str):
+    """删除对话"""
+    try:
+        success = conversation_service.delete_conversation(conversation_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="对话不存在")
+        return Response(success=True, data={"status": "deleted"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/conversations/{conversation_id}/messages", response_model=Response)
+async def add_conversation_message(conversation_id: str, request: ConversationMessageRequest):
+    """添加消息到对话"""
+    try:
+        conv = conversation_service.add_message(
+            conversation_id,
+            role=request.role,
+            content=request.content,
+            use_markdown=request.use_markdown
+        )
+        if not conv:
+            raise HTTPException(status_code=404, detail="对话不存在")
+        return Response(success=True, data=conv)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/conversations/{conversation_id}/messages", response_model=Response)
+async def clear_conversation_messages(conversation_id: str):
+    """清空对话消息"""
+    try:
+        success = conversation_service.clear_conversation(conversation_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="对话不存在")
+        return Response(success=True, data={"status": "cleared"})
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -118,5 +118,63 @@ class QuoteAuditService:
                 } for issue in report.issues
             ],
             "recommendations": report.recommendations,
-            "markdown": report.markdown
+            "markdown": report.markdown,
+            "summaries": [
+                {
+                    "phase": s.phase,
+                    "subtotal_material": float(s.subtotal_material),
+                    "subtotal_labor": float(s.subtotal_labor),
+                    "direct_cost": float(s.direct_cost),
+                    "measures_cost": float(s.measures_cost),
+                    "tax": float(s.tax),
+                    "grand_total": float(s.grand_total),
+                } for s in report.summaries
+            ],
+            "sections": [
+                {
+                    "section_id": s.section_id,
+                    "section_name": s.section_name,
+                    "phase": s.phase,
+                    "subtotal_material": float(s.subtotal_material),
+                    "subtotal_labor": float(s.subtotal_labor),
+                    "item_count": len(s.items),
+                    "items": [
+                        {
+                            "sequence": item.sequence,
+                            "item_name": item.item_name,
+                            "item_features": item.item_features,
+                            "unit": item.unit,
+                            "quantity": float(item.quantity) if item.quantity else None,
+                            "material_unit_price": float(item.material_unit_price) if item.material_unit_price else None,
+                            "labor_unit_price": float(item.labor_unit_price) if item.labor_unit_price else None,
+                            "material_total": float(item.material_total) if item.material_total else None,
+                            "labor_total": float(item.labor_total) if item.labor_total else None,
+                            "phase": item.phase,
+                        } for item in s.items
+                    ],
+                    "errors": s.subtotal_errors,
+                } for s in report.sections
+            ],
+            "compliance_findings": [
+                {
+                    "item_sequence": f.item_sequence,
+                    "item_name": f.item_name,
+                    "finding_type": f.finding_type,
+                    "severity": f.severity,
+                    "message": f.message,
+                } for f in report.compliance_findings
+            ],
+            "arithmetic_errors": [
+                {
+                    "item_sequence": e.item_sequence,
+                    "item_name": e.item_name,
+                    "error_type": e.error_type,
+                    "severity": e.severity,
+                    "expected": float(e.expected) if e.expected else None,
+                    "actual": float(e.actual) if e.actual else None,
+                    "difference": float(e.difference) if e.difference else None,
+                } for e in report.arithmetic_errors
+            ],
+            "total_rt": float(report.total_rt) if report.total_rt else None,
+            "building_area": float(report.building_area) if report.building_area else None,
         }
